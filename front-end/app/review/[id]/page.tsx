@@ -1,7 +1,9 @@
 import { notFound } from 'next/navigation';
 import ReviewClient from './ReviewClient';
 
+// Dữ liệu giả lập về các trung tâm gia sư (mock data)
 const mockCenters: Record<string, any> = {
+  // Trung tâm 1
   '1': {
     id: '1',
     name: 'Trung Tâm Gia Sư Ánh Dương',
@@ -20,6 +22,7 @@ const mockCenters: Record<string, any> = {
     images: [
       'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800&h=600&fit=crop',
     ],
+    // Danh sách đánh giá của học viên/phụ huynh
     reviews: [
       {
         id: '1',
@@ -68,6 +71,7 @@ const mockCenters: Record<string, any> = {
       },
     ],
   },
+  // Trung tâm 2
   '2': {
     id: '2',
     name: 'Trung Tâm Gia Sư Việt Anh',
@@ -106,6 +110,7 @@ const mockCenters: Record<string, any> = {
       },
     ],
   },
+  // Trung tâm 3
   '3': {
     id: '3',
     name: 'Trung Tâm Gia Sư Thanh Xuân',
@@ -136,6 +141,7 @@ const mockCenters: Record<string, any> = {
       },
     ],
   },
+  // Trung tâm 4
   '4': {
     id: '4',
     name: 'Trung Tâm Gia Sư Minh Khai',
@@ -165,6 +171,7 @@ const mockCenters: Record<string, any> = {
       },
     ],
   },
+  // Trung tâm 5
   '5': {
     id: '5',
     name: 'Trung Tâm Gia Sư Tân Phú',
@@ -197,18 +204,24 @@ const mockCenters: Record<string, any> = {
   },
 };
 
+// Định nghĩa các tham số tĩnh để build trước route tĩnh cho từng id trung tâm
 export function generateStaticParams() {
+  // Trả về mảng các đối tượng có dạng { id: <id> }
   return Object.keys(mockCenters).map((id) => ({
     id: id,
   }));
 }
 
+// Trang review cho từng trung tâm, lấy thông tin theo id
 export default function ReviewPage({ params }: { params: { id: string } }) {
+  // Lấy dữ liệu trung tâm theo id từ mockCenters
   const center = mockCenters[params.id];
 
+  // Nếu không tồn tại trung tâm, trả về trang 404
   if (!center) {
     notFound();
   }
 
+  // Truyền dữ liệu xuống client component để render chi tiết trung tâm
   return <ReviewClient center={center} />;
 }

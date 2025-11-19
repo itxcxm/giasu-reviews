@@ -2,12 +2,14 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Search, Star, MapPin, Clock, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
+// Dữ liệu giả định các trung tâm gia sư
 const mockCenters = [
   {
     id: '1',
@@ -16,7 +18,7 @@ const mockCenters = [
     rating: 4.8,
     reviewCount: 156,
     image: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=400&h=250&fit=crop',
-    latestReviewDate: '2024-01-15',
+    latestReviewDate: '2024-01-20',
   },
   {
     id: '2',
@@ -56,26 +58,29 @@ const mockCenters = [
   },
 ];
 
-// Sort centers by latest review date (newest first)
+// Sắp xếp trung tâm theo ngày đánh giá mới nhất (mới nhất lên đầu)
 const sortByLatestReview = (centers: typeof mockCenters) => {
   return [...centers].sort((a, b) => {
     const dateA = new Date(a.latestReviewDate).getTime();
     const dateB = new Date(b.latestReviewDate).getTime();
-    return dateB - dateA; // Descending order (newest first)
+    return dateB - dateA; // Giảm dần (mới nhất trước)
   });
 };
 
 export default function Home() {
+  // Trạng thái từ khóa tìm kiếm
   const [searchQuery, setSearchQuery] = useState('');
+  // Trạng thái danh sách trung tâm đã lọc
   const [filteredCenters, setFilteredCenters] = useState(sortByLatestReview(mockCenters));
 
+  // Xử lý tìm kiếm trung tâm
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     if (query.trim() === '') {
-      // When search is empty, show centers sorted by latest review date
+      // Nếu ô tìm kiếm rỗng, hiển thị lại toàn bộ (sắp xếp mới nhất)
       setFilteredCenters(sortByLatestReview(mockCenters));
     } else {
-      // When searching, filter and maintain the latest review order
+      // Nếu có tìm kiếm, lọc và vẫn giữ tiêu chí mới nhất
       const filtered = mockCenters.filter(
         (center) =>
           center.name.toLowerCase().includes(query.toLowerCase()) ||
@@ -98,6 +103,7 @@ export default function Home() {
                 Đánh Giá Gia Sư
               </h1>
             </div>
+            {/* Nút thêm trung tâm mới */}
             <Link href="/add-center">
               <Button>Thêm Trung Tâm</Button>
             </Link>
@@ -114,11 +120,12 @@ export default function Home() {
             Khám phá và đánh giá các trung tâm gia sư tốt nhất tại Việt Nam
           </p>
 
+          {/* Thanh tìm kiếm trung tâm */}
           <div className="relative max-w-2xl mx-auto">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
             <Input
               type="text"
-              placeholder="Tìm kiếm theo tên, địa chỉ hoặc môn học..."
+              placeholder="Tìm kiếm theo tên trung tâm..."
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
               className="pl-12 pr-4 py-6 text-lg shadow-lg border-slate-200 focus:border-blue-500"
@@ -126,26 +133,28 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Chỉ hiện tiêu đề "Mới Cập Nhật" nếu không tìm kiếm */}
         <div className={searchQuery.trim() === '' ? 'block ' + ' mb-6' : 'hidden' }>
           <p className="text-slate-600 text-2xl font-bold">
             Mới Cập Nhật
           </p>
         </div>
 
+        {/* Lưới danh sách trung tâm */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredCenters.map((center) => (
             <Link key={center.id} href={`/review/${center.id}`}>
               <Card className="h-full hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer border-slate-200 overflow-hidden">
                 <div className="relative w-full h-48 overflow-hidden bg-slate-100">
-                  <img
+                  <Image
                     src={center.image}
                     alt={center.name}
-                    className="w-full h-full object-cover transition-transform duration-300 hover:scale-110"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=400&h=250&fit=crop';
-                    }}
+                    fill
+                    className="object-cover transition-transform duration-300 hover:scale-110"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    unoptimized
                   />
+                  {/* Badge hiển thị điểm đánh giá */}
                   <div className="absolute top-3 right-3">
                     <Badge variant="secondary" className="bg-white/90 backdrop-blur-sm text-yellow-700 border-yellow-200 shadow-sm">
                       <Star className="w-3 h-3 fill-yellow-500 text-yellow-500 mr-1" />
@@ -175,6 +184,7 @@ export default function Home() {
           ))}
         </div>
 
+        {/* Khi không có trung tâm phù hợp */}
         {filteredCenters.length === 0 && (
           <div className="text-center py-12">
             <p className="text-slate-500 text-lg">
@@ -184,6 +194,7 @@ export default function Home() {
         )}
       </main>
 
+      {/* Footer trang */}
       <footer className="border-t bg-slate-50 mt-20">
         <div className="container mx-auto px-4 py-8 text-center text-slate-600">
           <p>© 2025 Đánh Giá Gia Sư. Website đánh giá trung tâm gia sư tại Việt Nam.</p>

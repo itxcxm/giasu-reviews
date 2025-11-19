@@ -1,5 +1,6 @@
 'use client';
 
+// Các import thư viện cần thiết
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -27,18 +28,29 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
 
+// Định nghĩa props cho component ReviewClient
 interface ReviewClientProps {
   center: any;
 }
 
+// Component chính quản lý hiển thị, gửi đánh giá và xem ảnh trung tâm
 export default function ReviewClient({ center }: ReviewClientProps) {
+  // Hook điều hướng Next.js (chưa sử dụng trong code này)
   const router = useRouter();
+
+  // Hook toast để hiển thị thông báo
   const { toast } = useToast();
+
+  // State lưu số sao đánh giá đang chọn
   const [selectedRating, setSelectedRating] = useState(5);
+  // State lưu nội dung bình luận đánh giá
   const [reviewText, setReviewText] = useState('');
+  // State lưu danh sách ảnh đánh giá được tải lên: Mỗi ảnh có file và preview
   const [reviewImages, setReviewImages] = useState<{ file: File; preview: string }[]>([]);
+  // State lưu chỉ số ảnh đang chọn của lightbox (modal xem hình ảnh trung tâm)
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
 
+  // Danh sách phân bố đánh giá (số lượng & tỷ lệ phần trăm theo mức sao), hiện cứng
   const ratingDistribution = [
     { stars: 5, count: 12, percentage: 77 },
     { stars: 4, count: 25, percentage: 16 },
@@ -47,7 +59,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
     { stars: 1, count: 1, percentage: 1 },
   ];
 
-  // Hàm tối ưu hóa hình ảnh
+  // Hàm tối ưu hóa hình ảnh (resize + đổi định dạng JPG, nén trước khi upload)
   const optimizeImage = (file: File): Promise<File> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -57,10 +69,12 @@ export default function ReviewClient({ center }: ReviewClientProps) {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           if (!ctx) {
+            // Không lấy được context canvas => reject
             reject(new Error('Không thể nhận canvas context'));
             return;
           }
 
+          // Thiết lập kích thước tối đa là 1920x1920 px
           const MAX_WIDTH = 1920;
           const MAX_HEIGHT = 1920;
           let width = img.width;
@@ -78,16 +92,19 @@ export default function ReviewClient({ center }: ReviewClientProps) {
             }
           }
 
+          // Set kích thước lại cho canvas và vẽ ảnh lên
           canvas.width = width;
           canvas.height = height;
           ctx.drawImage(img, 0, 0, width, height);
 
+          // Chuyển canvas sang blob JPEG chất lượng 85%
           canvas.toBlob(
             (blob) => {
               if (!blob) {
                 reject(new Error('Nén hình ảnh thất bại'));
                 return;
               }
+              // Tạo file mới từ blob
               const optimizedFile = new File([blob], file.name, {
                 type: 'image/jpeg',
                 lastModified: Date.now(),
@@ -106,10 +123,12 @@ export default function ReviewClient({ center }: ReviewClientProps) {
     });
   };
 
+  // Xử lý khi người dùng chọn ảnh upload cho đánh giá
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    // Chỉ cho phép tối đa 1 ảnh
     const maxImages = 1;
     if (reviewImages.length >= maxImages) {
       toast({
@@ -123,6 +142,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
     const file = files[0];
     if (!file) return;
 
+    // Kiểm tra định dạng file là ảnh
     if (!file.type.startsWith('image/')) {
       toast({
         title: 'Lỗi',
@@ -131,6 +151,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
       });
       return;
     }
+    // Kiểm tra dung lượng file không quá 10MB
     if (file.size > 10 * 1024 * 1024) {
       toast({
         title: 'Lỗi',
@@ -140,8 +161,10 @@ export default function ReviewClient({ center }: ReviewClientProps) {
       return;
     }
 
+    // Thử tối ưu image (resize+nén)
     try {
       const optimizedFile = await optimizeImage(file);
+      // Tạo preview cho ảnh đã tối ưu để hiển thị
       const preview = await new Promise<string>((resolve) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result as string);
@@ -157,23 +180,26 @@ export default function ReviewClient({ center }: ReviewClientProps) {
     }
   };
 
+  // Xử lý khi người dùng xóa ảnh upload khỏi đánh giá
   const handleRemoveImage = (index: number) => {
     setReviewImages(reviewImages.filter((_, i) => i !== index));
   };
 
-  // Keyboard navigation for image modal
+  // useEffect cho phép điều khiển lightbox ảnh trung tâm bằng bàn phím (esc, mũi tên)
   useEffect(() => {
     if (selectedImageIndex === null) return;
 
+    // Lấy danh sách ảnh trung tâm để duyệt
     const images = center.images && center.images.length > 0 
       ? center.images 
       : center.image 
         ? [center.image] 
         : [];
 
+    // Xử lý phím bấm
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setSelectedImageIndex(null);
+        setSelectedImageIndex(null); // Đóng modal khi bấm escape
       } else if (e.key === 'ArrowLeft' && images.length > 1) {
         setSelectedImageIndex(
           selectedImageIndex > 0 
@@ -190,11 +216,14 @@ export default function ReviewClient({ center }: ReviewClientProps) {
     };
 
     window.addEventListener('keydown', handleKeyDown);
+    // Dọn dẹp listener khi đóng modal/ component unmount
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedImageIndex, center.images, center.image]);
 
+  // Xử lý khi user submit đánh giá mới
   const handleSubmitReview = (e: React.FormEvent) => {
     e.preventDefault();
+    // Kiểm tra nội dung bình luận tối thiểu 10 ký tự
     if (reviewText.trim().length < 10) {
       toast({
         title: 'Lỗi',
@@ -204,19 +233,22 @@ export default function ReviewClient({ center }: ReviewClientProps) {
       return;
     }
 
+    // Gửi review thành công (demo), có thể gửi API tại đây
     toast({
       title: 'Thành công!',
       description: 'Đánh giá của bạn đã được gửi.',
     });
 
+    // Reset lại nội dung cho lần đánh giá mới
     setReviewText('');
     setSelectedRating(5);
     setReviewImages([]);
   };
 
+  // Giao diện chính: header, thông tin trung tâm, danh sách đánh giá, form đánh giá, modal xem hình, footer
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white relative">
-      {/* Background pattern */}
+      {/* Nền caro đẹp cho màn hình nền */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
         <div className="absolute left-0 top-0 h-full w-full bg-gradient-to-br from-blue-50/30 via-transparent to-cyan-50/30"></div>
@@ -244,6 +276,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
+          {/* Card thông tin trung tâm */}
           <Card className="mb-8 shadow-xl border-slate-200">
             <CardHeader className="pb-4">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
@@ -260,6 +293,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Hiển thị hình ảnh trung tâm (nếu có) */}
               {(center.image || (center.images && center.images.length > 0)) && (
                 <div className="mb-6">
                   <h3 className="text-lg font-semibold text-slate-900 mb-4">Hình ảnh trung tâm</h3>
@@ -300,6 +334,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                 </div>
               )}
               <Separator />
+              {/* Thông tin liên hệ của trung tâm */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="flex items-center gap-3 text-slate-700">
@@ -330,8 +365,10 @@ export default function ReviewClient({ center }: ReviewClientProps) {
             </CardContent>
           </Card>
 
+          {/* Vùng chia 2: danh sách đánh giá và form tổng quan đánh giá bên phải */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-6">
+              {/* Danh sách đánh giá người dùng */}
               <Card className="shadow-lg border-slate-200">
                 <CardHeader>
                   <CardTitle>Các Đánh Giá</CardTitle>
@@ -341,6 +378,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                     {center.reviews.map((review: any) => (
                       <div key={review.id} className="pb-6 border-b last:border-b-0 last:pb-0">
                         <div className="flex items-start gap-4">
+                          {/* Ảnh avatar (chữ cái đầu tên người đánh giá), tự động lấy ký tự đầu */}
                           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 text-white font-semibold flex items-center justify-center text-lg shrink-0">
                             {review.author.charAt(0)}
                           </div>
@@ -350,6 +388,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                                 <p className="font-semibold text-slate-900">{review.author}</p>
                                 <div className="flex items-center gap-2 mt-1">
                                   <div className="flex">
+                                    {/* Hiển thị số sao (tô màu nếu được chọn) */}
                                     {[...Array(5)].map((_, i) => (
                                       <Star
                                         key={i}
@@ -373,6 +412,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                               <div className="flex flex-wrap gap-2 mb-3">
                                 {review.images.map((img: string, idx: number) => (
                                   <div key={idx} className="relative w-24 h-24 rounded-lg overflow-hidden border border-slate-200">
+                                    {/* Hiển thị ảnh đánh giá */}
                                     <Image
                                       src={img}
                                       alt={`Review image ${idx + 1}`}
@@ -384,6 +424,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                                 ))}
                               </div>
                             )}
+                            {/* Nút hữu ích */}
                             <Button variant="ghost" size="sm" className="text-slate-600 hover:text-blue-600">
                               <Heart className="w-4 h-4 mr-1" />
                               Hữu ích ({review.helpful})
@@ -397,7 +438,9 @@ export default function ReviewClient({ center }: ReviewClientProps) {
               </Card>
             </div>
 
+            {/* Cột bên phải: tổng quan và form gửi đánh giá mới */}
             <div className="space-y-6">
+              {/* Tổng quan đánh giá: điểm trung bình, phân bố số sao */}
               <Card className="shadow-lg border-slate-200">
                 <CardHeader>
                   <CardTitle>Tổng Quan Đánh Giá</CardTitle>
@@ -406,6 +449,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                   <div className="text-center mb-6">
                     <div className="text-5xl font-bold text-slate-900 mb-2">{center.rating}</div>
                     <div className="flex justify-center mb-2">
+                      {/* Sao trung bình dựa trên center.rating (tô màu sao thỏa) */}
                       {[...Array(5)].map((_, i) => (
                         <Star
                           key={i}
@@ -420,6 +464,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                     <p className="text-slate-600">{center.reviewCount} đánh giá</p>
                   </div>
 
+                  {/* Biểu đồ phân bố số sao (hiện số mẫu, phần trăm) */}
                   <div className="space-y-3">
                     {ratingDistribution.map((dist) => (
                       <div key={dist.stars} className="flex items-center gap-3">
@@ -440,6 +485,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                 </CardContent>
               </Card>
 
+              {/* Form gửi đánh giá mới */}
               <Card className="shadow-lg border-slate-200">
                 <CardHeader>
                   <CardTitle>Viết Đánh Giá</CardTitle>
@@ -447,6 +493,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={handleSubmitReview} className="space-y-4">
+                    {/* Chọn số sao */}
                     <div className="space-y-2">
                       <Label>Đánh giá của bạn</Label>
                       <div className="flex gap-2">
@@ -469,6 +516,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                       </div>
                     </div>
 
+                    {/* Ô nhập nhận xét */}
                     <div className="space-y-2">
                       <Label htmlFor="review">Nhận xét</Label>
                       <Textarea
@@ -482,6 +530,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                       <p className="text-xs text-slate-500">Tối thiểu 10 ký tự</p>
                     </div>
 
+                    {/* Ảnh đánh giá (có thể up lên hoặc xóa) */}
                     <div className="space-y-2">
                       <Label htmlFor="review-images">Hình ảnh</Label>
                       {reviewImages.length > 0 ? (
@@ -494,6 +543,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                             sizes="(max-width: 768px) 100vw, 50vw"
                             unoptimized
                           />
+                          {/* Nút xóa ảnh */}
                           <Button
                             type="button"
                             variant="destructive"
@@ -528,6 +578,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                       )}
                     </div>
 
+                    {/* Nút gửi đánh giá */}
                     <Button type="submit" className="w-full">
                       Gửi Đánh Giá
                     </Button>
@@ -539,13 +590,14 @@ export default function ReviewClient({ center }: ReviewClientProps) {
         </div>
       </main>
 
+      {/* Footer đơn giản: bản quyền, mô tả */}
       <footer className="border-t bg-slate-50 mt-20">
         <div className="container mx-auto px-4 py-8 text-center text-slate-600">
           <p>© 2025 Đánh Giá Gia Sư. Website đánh giá trung tâm gia sư tại Việt Nam.</p>
         </div>
       </footer>
 
-      {/* Image Modal/Lightbox */}
+      {/* Modal xem hình ảnh trung tâm (lightbox hiển thị lớn - chuyển ảnh, thoát esc) */}
       {selectedImageIndex !== null && (
         <div
           className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
@@ -553,6 +605,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
         >
           <div className="relative max-w-7xl max-h-full w-full h-full flex items-center justify-center">
             {(() => {
+              // Lấy danh sách hình ảnh dùng cho lightbox
               const images = center.images && center.images.length > 0 
                 ? center.images 
                 : center.image 
@@ -565,6 +618,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
               
               return (
                 <>
+                  {/* Nút chuyển sang ảnh trước / sau (nếu có >1 ảnh) */}
                   {images.length > 1 && (
                     <>
                       <Button
@@ -600,6 +654,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                     </>
                   )}
                   
+                  {/* Hình ảnh trung tâm full */}
                   <div 
                     className="relative w-full h-full flex items-center justify-center"
                     onClick={(e) => e.stopPropagation()}
@@ -614,6 +669,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                     />
                   </div>
                   
+                  {/* Nút đóng modal */}
                   <Button
                     variant="outline"
                     size="icon"
@@ -626,6 +682,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                     <X className="w-6 h-6" />
                   </Button>
                   
+                  {/* Hiển thị số/thứ tự ảnh nếu có nhiều ảnh */}
                   {images.length > 1 && (
                     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full text-white text-sm">
                       {selectedImageIndex + 1} / {images.length}
@@ -634,10 +691,12 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                 </>
               );
             })()}
+            
           </div>
         </div>
       )}
 
+      {/* Toaster: thông báo nhẹ cho người dùng (thành công/lỗi) */}
       <Toaster />
     </div>
   );
