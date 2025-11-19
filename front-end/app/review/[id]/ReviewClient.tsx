@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   ArrowLeft,
   Star,
@@ -11,13 +12,15 @@ import {
   Mail,
   Globe,
   Users,
-  Clock,
   Calendar,
   Heart,
+  Upload,
+  X,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -33,14 +36,162 @@ export default function ReviewClient({ center }: ReviewClientProps) {
   const { toast } = useToast();
   const [selectedRating, setSelectedRating] = useState(5);
   const [reviewText, setReviewText] = useState('');
+  const [reviewImages, setReviewImages] = useState<{ file: File; preview: string }[]>([]);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
 
   const ratingDistribution = [
-    { stars: 5, count: 120, percentage: 77 },
+    { stars: 5, count: 12, percentage: 77 },
     { stars: 4, count: 25, percentage: 16 },
     { stars: 3, count: 8, percentage: 5 },
     { stars: 2, count: 2, percentage: 1 },
     { stars: 1, count: 1, percentage: 1 },
   ];
+
+  // Hàm tối ưu hóa hình ảnh
+  const optimizeImage = (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new window.Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Không thể nhận canvas context'));
+            return;
+          }
+
+          const MAX_WIDTH = 1920;
+          const MAX_HEIGHT = 1920;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height = (height * MAX_WIDTH) / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width = (width * MAX_HEIGHT) / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error('Nén hình ảnh thất bại'));
+                return;
+              }
+              const optimizedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(optimizedFile);
+            },
+            'image/jpeg',
+            0.85
+          );
+        };
+        img.onerror = () => reject(new Error('Tải hình ảnh thất bại'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('Đọc file thất bại'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const maxImages = 1;
+    if (reviewImages.length >= maxImages) {
+      toast({
+        title: 'Lỗi',
+        description: 'Bạn chỉ có thể tải tối đa 1 ảnh',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const file = files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Lỗi',
+        description: 'Vui lòng chọn file ảnh hợp lệ',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: 'Lỗi',
+        description: 'Kích thước ảnh không được vượt quá 10MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const optimizedFile = await optimizeImage(file);
+      const preview = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(optimizedFile);
+      });
+      setReviewImages([{ file: optimizedFile, preview }]);
+    } catch (error) {
+      toast({
+        title: 'Lỗi',
+        description: 'Không thể tối ưu hóa ảnh. Vui lòng thử lại.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setReviewImages(reviewImages.filter((_, i) => i !== index));
+  };
+
+  // Keyboard navigation for image modal
+  useEffect(() => {
+    if (selectedImageIndex === null) return;
+
+    const images = center.images && center.images.length > 0 
+      ? center.images 
+      : center.image 
+        ? [center.image] 
+        : [];
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedImageIndex(null);
+      } else if (e.key === 'ArrowLeft' && images.length > 1) {
+        setSelectedImageIndex(
+          selectedImageIndex > 0 
+            ? selectedImageIndex - 1 
+            : images.length - 1
+        );
+      } else if (e.key === 'ArrowRight' && images.length > 1) {
+        setSelectedImageIndex(
+          selectedImageIndex < images.length - 1 
+            ? selectedImageIndex + 1 
+            : 0
+        );
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedImageIndex, center.images, center.image]);
 
   const handleSubmitReview = (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,10 +211,16 @@ export default function ReviewClient({ center }: ReviewClientProps) {
 
     setReviewText('');
     setSelectedRating(5);
+    setReviewImages([]);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white relative">
+      {/* Background pattern */}
+      <div className="fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
+        <div className="absolute left-0 top-0 h-full w-full bg-gradient-to-br from-blue-50/30 via-transparent to-cyan-50/30"></div>
+      </div>
       <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -100,17 +257,48 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {center.subjects.map((subject: string) => (
-                    <Badge key={subject} variant="secondary" className="text-sm">
-                      {subject}
-                    </Badge>
-                  ))}
-                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              <p className="text-slate-700 leading-relaxed">{center.description}</p>
+              {(center.image || (center.images && center.images.length > 0)) && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-slate-900 mb-4">Hình ảnh trung tâm</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {center.images && center.images.length > 0 ? (
+                      center.images.map((img: string, index: number) => (
+                        <div
+                          key={index}
+                          className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity group"
+                          onClick={() => setSelectedImageIndex(index)}
+                        >
+                          <Image
+                            src={img}
+                            alt={`${center.name} - Hình ${index + 1}`}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
+                        </div>
+                      ))
+                    ) : center.image ? (
+                      <div
+                        className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity group"
+                        onClick={() => setSelectedImageIndex(0)}
+                      >
+                        <Image
+                          src={center.image}
+                          alt={center.name}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              )}
               <Separator />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
@@ -146,8 +334,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
             <div className="lg:col-span-2 space-y-6">
               <Card className="shadow-lg border-slate-200">
                 <CardHeader>
-                  <CardTitle>Đánh Giá Của Học Viên</CardTitle>
-                  <CardDescription>{center.reviewCount} đánh giá </CardDescription>
+                  <CardTitle>Các Đánh Giá</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -182,6 +369,21 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                               </div>
                             </div>
                             <p className="text-slate-700 leading-relaxed mb-3">{review.comment}</p>
+                            {review.images && review.images.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mb-3">
+                                {review.images.map((img: string, idx: number) => (
+                                  <div key={idx} className="relative w-24 h-24 rounded-lg overflow-hidden border border-slate-200">
+                                    <Image
+                                      src={img}
+                                      alt={`Review image ${idx + 1}`}
+                                      fill
+                                      className="object-cover"
+                                      sizes="96px"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                             <Button variant="ghost" size="sm" className="text-slate-600 hover:text-blue-600">
                               <Heart className="w-4 h-4 mr-1" />
                               Hữu ích ({review.helpful})
@@ -280,6 +482,52 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                       <p className="text-xs text-slate-500">Tối thiểu 10 ký tự</p>
                     </div>
 
+                    <div className="space-y-2">
+                      <Label htmlFor="review-images">Hình ảnh</Label>
+                      {reviewImages.length > 0 ? (
+                        <div className="relative w-full h-48 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center">
+                          <Image
+                            src={reviewImages[0].preview}
+                            alt="Preview"
+                            fill
+                            className="object-contain"
+                            sizes="(max-width: 768px) 100vw, 50vw"
+                            unoptimized
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleRemoveImage(0)}
+                            className="absolute top-2 right-2"
+                          >
+                            <X className="w-4 h-4 mr-1" />
+                            Xóa
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-blue-500 transition-colors">
+                          <input
+                            type="file"
+                            id="review-images"
+                            accept="image/*"
+                            onChange={handleImageChange}
+                            className="hidden"
+                          />
+                          <label
+                            htmlFor="review-images"
+                            className="cursor-pointer flex flex-col items-center gap-2"
+                          >
+                            <Upload className="w-5 h-5 text-slate-600" />
+                            <span className="text-sm text-blue-600 font-medium">
+                              Thêm ảnh
+                            </span>
+                            <p className="text-xs text-slate-500">PNG, JPG, GIF tối đa 10MB</p>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+
                     <Button type="submit" className="w-full">
                       Gửi Đánh Giá
                     </Button>
@@ -293,9 +541,102 @@ export default function ReviewClient({ center }: ReviewClientProps) {
 
       <footer className="border-t bg-slate-50 mt-20">
         <div className="container mx-auto px-4 py-8 text-center text-slate-600">
-          <p>© 2024 Đánh Giá Gia Sư. Website đánh giá trung tâm gia sư tại Việt Nam.</p>
+          <p>© 2025 Đánh Giá Gia Sư. Website đánh giá trung tâm gia sư tại Việt Nam.</p>
         </div>
       </footer>
+
+      {/* Image Modal/Lightbox */}
+      {selectedImageIndex !== null && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setSelectedImageIndex(null)}
+        >
+          <div className="relative max-w-7xl max-h-full w-full h-full flex items-center justify-center">
+            {(() => {
+              const images = center.images && center.images.length > 0 
+                ? center.images 
+                : center.image 
+                  ? [center.image] 
+                  : [];
+              
+              if (images.length === 0) return null;
+              
+              const currentImage = images[selectedImageIndex];
+              
+              return (
+                <>
+                  {images.length > 1 && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-white/10 hover:bg-white/20 text-white border-white/20"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedImageIndex(
+                            selectedImageIndex > 0 
+                              ? selectedImageIndex - 1 
+                              : images.length - 1
+                          );
+                        }}
+                      >
+                        <ChevronLeft className="w-6 h-6" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-white/10 hover:bg-white/20 text-white border-white/20"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedImageIndex(
+                            selectedImageIndex < images.length - 1 
+                              ? selectedImageIndex + 1 
+                              : 0
+                          );
+                        }}
+                      >
+                        <ChevronRight className="w-6 h-6" />
+                      </Button>
+                    </>
+                  )}
+                  
+                  <div 
+                    className="relative w-full h-full flex items-center justify-center"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Image
+                      src={currentImage}
+                      alt={`${center.name} - Hình ${selectedImageIndex + 1}`}
+                      fill
+                      className="object-contain"
+                      sizes="100vw"
+                      priority
+                    />
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="absolute top-4 right-4 z-10 bg-white/10 hover:bg-white/20 text-white border-white/20"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedImageIndex(null);
+                    }}
+                  >
+                    <X className="w-6 h-6" />
+                  </Button>
+                  
+                  {images.length > 1 && (
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full text-white text-sm">
+                      {selectedImageIndex + 1} / {images.length}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
 
       <Toaster />
     </div>

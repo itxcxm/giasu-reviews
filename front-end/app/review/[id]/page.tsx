@@ -16,6 +16,10 @@ const mockCenters: Record<string, any> = {
       'Trung tâm gia sư Ánh Dương là một trong những trung tâm uy tín hàng đầu tại TP.HCM. Với đội ngũ giáo viên giàu kinh nghiệm, chúng tôi cam kết mang đến chất lượng giảng dạy tốt nhất cho học sinh. Phương pháp giảng dạy hiện đại, kết hợp giữa lý thuyết và thực hành, giúp học sinh nắm vững kiến thức và phát triển toàn diện.',
     students: 500,
     yearsActive: 8,
+    image: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800&h=600&fit=crop',
+    images: [
+      'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800&h=600&fit=crop',
+    ],
     reviews: [
       {
         id: '1',
@@ -78,6 +82,10 @@ const mockCenters: Record<string, any> = {
       'Chuyên đào tạo tiếng Anh giao tiếp và các môn học phổ thông. Giáo viên bản ngữ kết hợp với giáo viên Việt Nam có trình độ cao. Phương pháp học tập hiện đại, tập trung vào kỹ năng thực hành.',
     students: 350,
     yearsActive: 5,
+    image: 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=800&h=600&fit=crop',
+    images: [
+      'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=800&h=600&fit=crop',
+    ],
     reviews: [
       {
         id: '1',
@@ -112,6 +120,10 @@ const mockCenters: Record<string, any> = {
       'Chuyên đào tạo học sinh giỏi và luyện thi đại học. Đội ngũ giáo viên là các thạc sĩ, giảng viên đại học có kinh nghiệm lâu năm. Tỷ lệ đỗ đại học cao.',
     students: 750,
     yearsActive: 12,
+    image: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800&h=600&fit=crop',
+    images: [
+      'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800&h=600&fit=crop',
+    ],
     reviews: [
       {
         id: '1',
@@ -138,6 +150,10 @@ const mockCenters: Record<string, any> = {
       'Lớp học nhỏ với tối đa 8-10 học sinh, đảm bảo chất lượng giảng dạy. Chú trọng vào việc phát triển tư duy và kỹ năng giải quyết vấn đề.',
     students: 200,
     yearsActive: 4,
+    image: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&h=600&fit=crop',
+    images: [
+      'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&h=600&fit=crop',
+    ],
     reviews: [
       {
         id: '1',
@@ -163,6 +179,10 @@ const mockCenters: Record<string, any> = {
       'Trung tâm gia sư với học phí hợp lý, phù hợp với nhiều gia đình. Giáo viên tận tâm, có kinh nghiệm. Chương trình học linh hoạt theo từng học sinh.',
     students: 420,
     yearsActive: 7,
+    image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&h=600&fit=crop',
+    images: [
+      'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&h=600&fit=crop',
+    ],
     reviews: [
       {
         id: '1',

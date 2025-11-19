@@ -16,6 +16,7 @@ const mockCenters = [
     rating: 4.8,
     reviewCount: 156,
     image: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=400&h=250&fit=crop',
+    latestReviewDate: '2024-01-15',
   },
   {
     id: '2',
@@ -24,6 +25,7 @@ const mockCenters = [
     rating: 4.6,
     reviewCount: 98,
     image: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=400&h=250&fit=crop',
+    latestReviewDate: '2024-01-12',
   },
   {
     id: '3',
@@ -32,6 +34,7 @@ const mockCenters = [
     rating: 4.9,
     reviewCount: 203,
     image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&h=250&fit=crop',
+    latestReviewDate: '2024-01-14',
   },
   {
     id: '4',
@@ -40,6 +43,7 @@ const mockCenters = [
     rating: 4.5,
     reviewCount: 67,
     image: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=400&h=250&fit=crop',
+    latestReviewDate: '2024-01-11',
   },
   {
     id: '5',
@@ -48,24 +52,36 @@ const mockCenters = [
     rating: 4.7,
     reviewCount: 134,
     image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=400&h=250&fit=crop',
+    latestReviewDate: '2024-01-13',
   },
 ];
 
+// Sort centers by latest review date (newest first)
+const sortByLatestReview = (centers: typeof mockCenters) => {
+  return [...centers].sort((a, b) => {
+    const dateA = new Date(a.latestReviewDate).getTime();
+    const dateB = new Date(b.latestReviewDate).getTime();
+    return dateB - dateA; // Descending order (newest first)
+  });
+};
+
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredCenters, setFilteredCenters] = useState(mockCenters);
+  const [filteredCenters, setFilteredCenters] = useState(sortByLatestReview(mockCenters));
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     if (query.trim() === '') {
-      setFilteredCenters(mockCenters);
+      // When search is empty, show centers sorted by latest review date
+      setFilteredCenters(sortByLatestReview(mockCenters));
     } else {
+      // When searching, filter and maintain the latest review order
       const filtered = mockCenters.filter(
         (center) =>
           center.name.toLowerCase().includes(query.toLowerCase()) ||
           center.address.toLowerCase().includes(query.toLowerCase())
       );
-      setFilteredCenters(filtered);
+      setFilteredCenters(sortByLatestReview(filtered));
     }
   };
 
@@ -110,9 +126,9 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="mb-6">
-          <p className="text-slate-600">
-            Tìm thấy <span className="font-semibold text-slate-900">{filteredCenters.length}</span> trung tâm
+        <div className={searchQuery.trim() === '' ? 'block ' + ' mb-6' : 'hidden' }>
+          <p className="text-slate-600 text-2xl font-bold">
+            Mới Cập Nhật
           </p>
         </div>
 
@@ -170,7 +186,7 @@ export default function Home() {
 
       <footer className="border-t bg-slate-50 mt-20">
         <div className="container mx-auto px-4 py-8 text-center text-slate-600">
-          <p>© 2024 Đánh Giá Gia Sư. Website đánh giá trung tâm gia sư tại Việt Nam.</p>
+          <p>© 2025 Đánh Giá Gia Sư. Website đánh giá trung tâm gia sư tại Việt Nam.</p>
         </div>
       </footer>
     </div>
