@@ -390,7 +390,7 @@ export default function AddCenterPage() {
       {/* Phần footer */}
       <footer className="border-t bg-slate-50 mt-20">
         <div className="container mx-auto px-4 py-8 text-center text-slate-600">
-          <p>© 2025 Đánh Giá Gia Sư. Website đánh giá trung tâm gia sư tại Việt Nam.</p>
+          <p>© 2025 Đánh Giá Trung Tâm. Website đánh giá trung tâm gia sư tại Việt Nam.</p>
         </div>
       </footer>
 

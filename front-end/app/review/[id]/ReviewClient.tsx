@@ -261,7 +261,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                 <Users className="w-6 h-6 text-white" />
               </div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                Đánh Giá Gia Sư
+                Đánh Giá Trung Tâm
               </h1>
             </Link>
             <Link href="/">

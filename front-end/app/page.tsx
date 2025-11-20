@@ -100,7 +100,7 @@ export default function Home() {
                 <Users className="w-6 h-6 text-white" />
               </div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                Đánh Giá Gia Sư
+                Đánh Giá Trung Tâm
               </h1>
             </div>
             {/* Nút thêm trung tâm mới */}
@@ -197,7 +197,7 @@ export default function Home() {
       {/* Footer trang */}
       <footer className="border-t bg-slate-50 mt-20">
         <div className="container mx-auto px-4 py-8 text-center text-slate-600">
-          <p>© 2025 Đánh Giá Gia Sư. Website đánh giá trung tâm gia sư tại Việt Nam.</p>
+          <p>© 2025 Đánh Giá Trung Tâm. Website đánh giá trung tâm gia sư tại Việt Nam.</p>
         </div>
       </footer>
     </div>
