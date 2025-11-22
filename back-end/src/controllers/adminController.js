@@ -196,29 +196,32 @@ export class AdminController {
     }
   };
 
-  // Kiểm tra đăng nhập (endpoint đơn giản chỉ trả về true/false)
+  // Kiểm tra đăng nhập (endpoint linh hoạt, không yêu cầu token bắt buộc)
+  // Trả về authenticated: true/false thay vì throw error
   checkAuth = async (req, res) => {
     try {
-      // Lấy thông tin admin từ request (đã được set bởi adminMiddleware)
+      // Lấy thông tin admin từ request (đã được set bởi optionalAuthMiddleware)
       const admin = req.admin || req.user;
 
-      if (!admin) {
-        return res.status(HTTP_STATUS.UNAUTHORIZED).json({
-          success: false,
-          message: "Chưa đăng nhập",
+      // Nếu không có admin hoặc không phải admin role
+      if (!admin || admin.role !== "admin") {
+        return res.status(HTTP_STATUS.OK).json({
+          success: true,
+          message: "Chưa đăng nhập hoặc không có quyền truy cập",
           authenticated: false,
         });
       }
 
-      // Kiểm tra role phải là admin
-      if (admin.role !== "admin") {
-        return res.status(HTTP_STATUS.FORBIDDEN).json({
-          success: false,
-          message: "Không có quyền truy cập",
+      // Kiểm tra admin có active không
+      if (!admin.isActive) {
+        return res.status(HTTP_STATUS.OK).json({
+          success: true,
+          message: "Tài khoản chưa được kích hoạt",
           authenticated: false,
         });
       }
 
+      // Đã xác thực thành công
       return res.status(HTTP_STATUS.OK).json({
         success: true,
         message: "Đã xác thực",
@@ -235,7 +238,8 @@ export class AdminController {
       });
     } catch (error) {
       console.error("Check auth error:", error);
-      return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+      // Trả về authenticated: false thay vì 500 error để frontend có thể xử lý
+      return res.status(HTTP_STATUS.OK).json({
         success: false,
         message: "Lỗi hệ thống khi kiểm tra đăng nhập",
         authenticated: false,

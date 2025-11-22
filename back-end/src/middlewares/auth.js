@@ -331,6 +331,143 @@ export const generateRefreshToken = (adminId) => {
   });
 };
 
+// Middleware xác thực tùy chọn - không throw error nếu không có token
+// Dùng cho các endpoint như check-auth, chỉ cần biết trạng thái đăng nhập
+export const optionalAuthMiddleware = async (req, res, next) => {
+  try {
+    // Lấy token truy cập từ cookie hoặc header Authorization
+    let token = req.cookies.accessToken;
+
+    // Nếu không có token trong cookie, thử lấy từ header
+    if (!token) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        token = authHeader.substring(7);
+      }
+    }
+
+    // Nếu không có token, tiếp tục mà không set req.admin
+    if (!token) {
+      req.admin = null;
+      req.user = null;
+      req.userId = null;
+      req.adminId = null;
+      return next();
+    }
+
+    try {
+      // Xác thực accessToken
+      const decoded = jwt.verify(token, JWT_CONFIG.SECRET);
+
+      // Tìm admin từ DB, loại trừ trường password
+      const admin = await Admin.findById(decoded.id).select("-password");
+
+      // Nếu tìm thấy admin và role là admin, set vào request
+      if (admin && admin.role === "admin") {
+        req.admin = admin;
+        req.user = admin;
+        req.userId = admin._id;
+        req.adminId = admin._id;
+      } else {
+        req.admin = null;
+        req.user = null;
+        req.userId = null;
+        req.adminId = null;
+      }
+
+      next();
+    } catch (accessTokenError) {
+      // Nếu access token hết hạn hoặc không hợp lệ thì check refresh token
+      if (
+        accessTokenError.name === "TokenExpiredError" ||
+        accessTokenError.name === "JsonWebTokenError"
+      ) {
+        // Kiểm tra refreshToken từ cookie
+        const refreshToken = req.cookies.refreshToken;
+
+        if (!refreshToken) {
+          // Không có refresh token, tiếp tục mà không set req.admin
+          req.admin = null;
+          req.user = null;
+          req.userId = null;
+          req.adminId = null;
+          return next();
+        }
+
+        try {
+          // Xác thực refreshToken
+          const decodedRefreshToken = jwt.verify(
+            refreshToken,
+            JWT_CONFIG.REFRESH_SECRET
+          );
+          // Tìm admin từ DB với refreshToken
+          const admin = await Admin.findById(decodedRefreshToken.id).select(
+            "-password"
+          );
+
+          if (admin && admin.role === "admin") {
+            // Tạo accessToken và refreshToken mới
+            const accessToken = jwt.sign({ id: admin._id }, JWT_CONFIG.SECRET, {
+              expiresIn: JWT_CONFIG.EXPIRES_IN,
+            });
+            const newRefreshToken = jwt.sign(
+              { id: admin._id },
+              JWT_CONFIG.REFRESH_SECRET,
+              { expiresIn: JWT_CONFIG.REFRESH_EXPIRES_IN }
+            );
+
+            // Thiết lập cookie mới cho accessToken và refreshToken
+            const cookieOptions = getCookieOptions();
+            res.cookie("accessToken", accessToken, {
+              ...cookieOptions,
+              maxAge: 15 * 60 * 1000, // 15 phút
+            });
+            res.cookie("refreshToken", newRefreshToken, {
+              ...cookieOptions,
+              maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
+            });
+
+            // Lưu thông tin admin vào request
+            req.admin = admin;
+            req.user = admin;
+            req.userId = admin._id;
+            req.adminId = admin._id;
+          } else {
+            req.admin = null;
+            req.user = null;
+            req.userId = null;
+            req.adminId = null;
+          }
+
+          next();
+        } catch (refreshTokenError) {
+          // Refresh token cũng hết hạn hoặc không hợp lệ, tiếp tục mà không set req.admin
+          req.admin = null;
+          req.user = null;
+          req.userId = null;
+          req.adminId = null;
+          next();
+        }
+      } else {
+        // Lỗi khác, tiếp tục mà không set req.admin
+        req.admin = null;
+        req.user = null;
+        req.userId = null;
+        req.adminId = null;
+        next();
+      }
+    }
+  } catch (error) {
+    // Lỗi hệ thống, tiếp tục mà không set req.admin
+    console.error("Optional auth middleware error:", error);
+    req.admin = null;
+    req.user = null;
+    req.userId = null;
+    req.adminId = null;
+    next();
+  }
+};
+
 // Hàm tiện ích xác thực, giải mã JWT token
 export const verifyToken = (token) => {
   try {

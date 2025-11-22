@@ -73,7 +73,7 @@ Backend đã được cấu hình để:
 2. Thử đăng nhập hoặc refresh trang
 3. Tìm request đến `/api/admin/check-auth` hoặc bất kỳ API call nào
 4. Xem **Request URL** trong tab Headers:
-   - ❌ **SAI**: `https://giasu-reviews.vercel.app/api/admin/check-auth` 
+   - ❌ **SAI**: `https://giasu-reviews.vercel.app/api/admin/check-auth`
      → `NEXT_PUBLIC_API_URL` chưa được set hoặc chưa redeploy
    - ✅ **ĐÚNG**: `https://your-backend-domain.com/api/admin/check-auth`
      → Đã cấu hình đúng, kiểm tra các bước tiếp theo
