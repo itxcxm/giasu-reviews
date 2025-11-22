@@ -52,14 +52,30 @@ npm install
 
 ### 1. Tạo file `.env.local`
 
+Tạo file `.env.local` trong thư mục `front-end/`:
+
 ```bash
 # API Base URL
 NEXT_PUBLIC_API_URL=http://localhost:5000
 ```
 
+**Lưu ý:**
+
+- Nếu gặp lỗi kết nối trong server-side rendering, thử dùng `http://127.0.0.1:5000` thay vì `localhost`
+- Bạn có thể copy từ file `.env.local.example` nếu có
+
 ### 2. Đảm bảo Back-end đang chạy
 
 Front-end cần kết nối đến back-end API. Đảm bảo back-end đang chạy tại `http://localhost:5000`.
+
+**Kiểm tra back-end:**
+
+```bash
+cd back-end
+npm run dev
+```
+
+Back-end sẽ chạy tại `http://localhost:5000` (hoặc port được cấu hình trong `.env` của back-end).
 
 ## ▶️ Chạy Ứng Dụng
 

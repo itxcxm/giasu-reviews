@@ -202,11 +202,16 @@ export default function Home() {
             {/* Khi không có trung tâm phù hợp */}
             {filteredCenters.length === 0 && (
               <div className="text-center py-12">
-                <p className="text-slate-500 text-lg">
+                <p className="text-slate-500 text-lg mb-4">
                   {searchQuery
                     ? `Không tìm thấy trung tâm nào phù hợp với từ khóa "${searchQuery}"`
-                    : 'Chưa có trung tâm nào'}
+                    : 'Chưa có trung tâm nào được duyệt'}
                 </p>
+                {!searchQuery && (
+                  <p className="text-slate-400 text-sm">
+                    Các trung tâm mới thêm sẽ được hiển thị sau khi được quản trị viên duyệt.
+                  </p>
+                )}
               </div>
             )}
           </>

@@ -1,7 +1,22 @@
 // API utility functions
 import axios, { AxiosInstance, AxiosError } from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+// Lấy API URL từ environment variable hoặc dùng default
+// Trong server-side rendering, có thể cần dùng 127.0.0.1 thay vì localhost
+const getApiBaseUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  // Trong server-side, có thể cần dùng 127.0.0.1
+  if (typeof window === 'undefined') {
+    // Server-side rendering
+    return process.env.API_URL || 'http://127.0.0.1:5000';
+  }
+  // Client-side
+  return 'http://localhost:5000';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Tạo axios instance với cấu hình mặc định
 const apiClient: AxiosInstance = axios.create({
@@ -10,6 +25,7 @@ const apiClient: AxiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000, // 10 giây timeout
 });
 
 // Request interceptor - có thể thêm token, logging, etc.
@@ -44,10 +60,20 @@ apiClient.interceptors.response.use(
       // Request đã được gửi nhưng không nhận được response
       // Kiểm tra xem có phải lỗi kết nối không
       const errorCode = (error as any).code;
-      if (errorCode === 'ECONNREFUSED' || errorCode === 'ERR_CONNECTION_REFUSED' || errorCode === 'ENOTFOUND') {
-        return Promise.reject(new Error('Không thể kết nối đến server. Vui lòng kiểm tra xem server đã chạy chưa.'));
+      console.error('API Request Error:', {
+        code: errorCode,
+        message: error.message,
+        baseURL: API_BASE_URL,
+        url: error.config?.url,
+      });
+      
+      if (errorCode === 'ECONNREFUSED' || errorCode === 'ERR_CONNECTION_REFUSED' || errorCode === 'ENOTFOUND' || errorCode === 'ETIMEDOUT') {
+        return Promise.reject(new Error(`Không thể kết nối đến server tại ${API_BASE_URL}. Vui lòng kiểm tra xem back-end server đã chạy chưa.`));
       }
-      return Promise.reject(new Error('Không thể kết nối đến server'));
+      if (errorCode === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        return Promise.reject(new Error('Request timeout. Server không phản hồi trong thời gian cho phép.'));
+      }
+      return Promise.reject(new Error(`Không thể kết nối đến server: ${error.message || 'Unknown error'}`));
     } else {
       // Có lỗi khi setup request
       return Promise.reject(error);
@@ -141,7 +167,7 @@ export const centersAPI = {
       formData.append('address', data.address || '');
       formData.append('phone', data.phone || '');
       formData.append('website', data.website || '');
-      formData.append('images', data.imageFile);
+      formData.append('image', data.imageFile); // 'image' cho single file upload
 
       const response = await apiClient.post('/api/centers', formData, {
         headers: {

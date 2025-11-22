@@ -63,10 +63,18 @@ const centerSchema = new mongoose.Schema(
         "Website phải bắt đầu với http:// hoặc https://",
       ],
     },
-    // Hình ảnh
+    // Hình ảnh (URL từ upanhnhanh.com)
     image: {
-      type: String, // URL hoặc path đến hình ảnh chính
+      type: String, // URL của hình ảnh (từ upanhnhanh.com)
       trim: true,
+      validate: {
+        validator: function (v) {
+          // Nếu có giá trị, phải là URL hợp lệ (http:// hoặc https://)
+          if (!v) return true; // Cho phép empty
+          return /^https?:\/\/.+/.test(v);
+        },
+        message: "Image phải là URL hợp lệ (bắt đầu với http:// hoặc https://)",
+      },
     },
     // Trạng thái duyệt (false = chưa duyệt, true = đã duyệt)
     isVerified: {

@@ -126,8 +126,8 @@ export class CentersController {
     try {
       // Lấy dữ liệu từ body (text fields)
       const { name, address, phone, website } = req.body;
-      // Lấy files từ multer (nếu có)
-      const files = req.files || [];
+      // Lấy file từ multer (uploadSingleImage sẽ set req.file)
+      const file = req.file;
 
       // Kiểm tra tên trung tâm bắt buộc nhập
       if (!name) {
@@ -137,12 +137,9 @@ export class CentersController {
         });
       }
 
-      // Upload ảnh lên upanhnhanh.com nếu có
-      let uploadedImageUrl = "";
-      if (files && files.length > 0) {
-        // Chỉ lấy ảnh đầu tiên cho center image
-        const file = files[0];
-
+      // Upload ảnh lên upanhnhanh.com nếu có file
+      let uploadedImageUrl = undefined;
+      if (file) {
         // Kiểm tra kích thước file không quá 10MB
         if (file.size > 10 * 1024 * 1024) {
           return res.status(HTTP_STATUS.BAD_REQUEST).json({
@@ -154,39 +151,40 @@ export class CentersController {
           });
         }
 
-        // Upload file
+        // Upload file và lấy URL
         try {
-          const uploadedUrls = await uploadService.uploadMultipleFiles([file]);
-          if (uploadedUrls && uploadedUrls.length > 0) {
-            uploadedImageUrl = uploadedUrls[0];
-          }
+          uploadedImageUrl = await uploadService.uploadFile(
+            file.buffer,
+            file.originalname,
+            file.mimetype
+          );
         } catch (uploadError) {
-          console.error("Error uploading file:", uploadError);
+          console.error("Error uploading center image:", uploadError);
           return res.status(HTTP_STATUS.BAD_REQUEST).json({
             success: false,
-            message: `Lỗi upload ảnh: ${uploadError.message}`,
+            message: `Lỗi upload ảnh trung tâm: ${uploadError.message}`,
           });
         }
       } else if (req.body.image && req.body.image.trim()) {
-        // Backward compatibility: hỗ trợ base64 nếu không có file
+        // Backward compatibility: hỗ trợ base64 nếu không có file (sẽ convert sang URL)
         try {
           uploadedImageUrl = await uploadService.uploadImage(req.body.image);
         } catch (uploadError) {
-          console.error("Error uploading image:", uploadError);
+          console.error("Error uploading base64 image:", uploadError);
           return res.status(HTTP_STATUS.BAD_REQUEST).json({
             success: false,
-            message: `Lỗi upload ảnh: ${uploadError.message}`,
+            message: `Lỗi upload ảnh (base64): ${uploadError.message}`,
           });
         }
       }
 
-      // Tạo object dữ liệu trung tâm
+      // Tạo object dữ liệu trung tâm (chỉ lưu URL, không lưu base64)
       const centerData = {
         name,
         address,
         phone,
         website,
-        image: uploadedImageUrl || undefined,
+        image: uploadedImageUrl, // Lưu URL từ upanhnhanh.com
       };
 
       // Gọi service tạo trung tâm mới
@@ -219,7 +217,34 @@ export class CentersController {
       if (address !== undefined) updateData.address = address;
       if (phone !== undefined) updateData.phone = phone;
       if (website !== undefined) updateData.website = website;
-      if (image !== undefined) updateData.image = image;
+
+      // Xử lý image: nếu là base64 thì upload lên upanhnhanh.com để lấy URL
+      if (image !== undefined) {
+        // Kiểm tra xem image có phải là base64 không
+        if (
+          image &&
+          typeof image === "string" &&
+          (image.startsWith("data:image/") || image.length > 1000)
+        ) {
+          // Nếu là base64, upload lên upanhnhanh.com để lấy URL
+          try {
+            const uploadedImageUrl = await uploadService.uploadImage(image);
+            updateData.image = uploadedImageUrl; // Lưu URL thay vì base64
+          } catch (uploadError) {
+            console.error(
+              "Error uploading base64 image in update:",
+              uploadError
+            );
+            return res.status(HTTP_STATUS.BAD_REQUEST).json({
+              success: false,
+              message: `Lỗi upload ảnh: ${uploadError.message}`,
+            });
+          }
+        } else {
+          // Nếu đã là URL hoặc empty string, giữ nguyên
+          updateData.image = image;
+        }
+      }
 
       // Gọi service để update
       const center = await this.centersService.updateCenter(id, updateData);

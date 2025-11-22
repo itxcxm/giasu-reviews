@@ -121,6 +121,16 @@ export class CentersRepository {
         return null;
       }
 
+      // Đảm bảo image field hợp lệ trước khi save (nếu có)
+      // Nếu image không phải URL hợp lệ, set thành undefined
+      if (center.image && typeof center.image === "string") {
+        const urlPattern = /^https?:\/\/.+/;
+        if (!urlPattern.test(center.image)) {
+          // Image không hợp lệ, set thành undefined để pass validation
+          center.image = undefined;
+        }
+      }
+
       // Thêm review vào mảng
       center.reviews.push(reviewData);
 

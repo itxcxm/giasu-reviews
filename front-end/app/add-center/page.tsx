@@ -174,13 +174,14 @@ export default function AddCenterPage() {
       if (response.success) {
         toast({
           title: 'Thành công!',
-          description: response.message || 'Trung tâm đã được thêm thành công. Đang chờ duyệt.',
+          description: 'Trung tâm đã được thêm thành công. Trung tâm của bạn đang chờ được duyệt bởi quản trị viên trước khi hiển thị trên trang chủ.',
+          duration: 5000, // Hiển thị lâu hơn để user đọc được
         });
 
-        // Chuyển về trang chủ sau 1.5 giây
+        // Chuyển về trang chủ sau 2 giây
         setTimeout(() => {
           router.push('/');
-        }, 1500);
+        }, 2000);
       } else {
         throw new Error(response.message || 'Không thể thêm trung tâm');
       }

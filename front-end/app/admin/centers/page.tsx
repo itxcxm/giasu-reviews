@@ -164,11 +164,22 @@ export default function AdminCentersPage() {
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Kiểm tra định dạng file
+      if (!file.type.startsWith('image/')) {
+        alert('Vui lòng chọn file ảnh hợp lệ');
+        return;
+      }
+      // Kiểm tra kích thước file (tối đa 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('Kích thước ảnh không được vượt quá 10MB');
+        return;
+      }
+      
       setImageFile(file);
+      // Chỉ dùng base64 cho preview, không lưu vào formData
       try {
         const base64 = await imageToBase64(file);
         setImagePreview(base64);
-        setFormData({ ...formData, image: base64 });
       } catch (error) {
         console.error('Error converting image:', error);
         alert('Không thể xử lý hình ảnh');
@@ -179,7 +190,10 @@ export default function AdminCentersPage() {
   const handleRemoveImage = () => {
     setImagePreview(null);
     setImageFile(null);
-    setFormData({ ...formData, image: '' });
+    // Nếu đang edit, giữ nguyên URL hiện tại trong formData
+    if (!editingCenter) {
+      setFormData({ ...formData, image: '' });
+    }
   };
 
   const handleSubmit = async () => {
@@ -191,16 +205,33 @@ export default function AdminCentersPage() {
     try {
       setSubmitting(true);
       
-      const centerData = {
-        name: formData.name,
-        address: formData.address,
-        phone: formData.phone,
-        website: formData.website || undefined,
-        image: formData.image || undefined,
-      };
-
       if (editingCenter) {
         // Cập nhật center
+        const centerData: any = {
+          name: formData.name,
+          address: formData.address,
+          phone: formData.phone,
+          website: formData.website || undefined,
+        };
+        
+        // Nếu có file mới, convert sang base64 và gửi lên server (server sẽ upload và lấy URL)
+        if (imageFile) {
+          try {
+            const base64 = await imageToBase64(imageFile);
+            // Gửi base64 lên server, server sẽ upload và trả về URL
+            centerData.image = base64;
+          } catch (error) {
+            console.error('Error converting image to base64:', error);
+            alert('Không thể xử lý hình ảnh');
+            setSubmitting(false);
+            return;
+          }
+        } else if (formData.image && !formData.image.startsWith('data:image/')) {
+          // Giữ nguyên URL hiện tại (không phải base64)
+          centerData.image = formData.image;
+        }
+        // Nếu không có imageFile và không có formData.image, không update image
+        
         const response = await centersAPI.updateCenter(
           editingCenter._id || editingCenter.id || '',
           centerData
@@ -216,8 +247,14 @@ export default function AdminCentersPage() {
         
         await loadCenters();
       } else {
-        // Tạo center mới
-        await centersAPI.createCenter(centerData);
+        // Tạo center mới - gửi file nếu có
+        await centersAPI.createCenter({
+          name: formData.name,
+          address: formData.address,
+          phone: formData.phone,
+          website: formData.website || undefined,
+          imageFile: imageFile || undefined,
+        });
         await loadCenters();
       }
       

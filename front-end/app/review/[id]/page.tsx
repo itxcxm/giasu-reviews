@@ -19,8 +19,14 @@ export default async function ReviewPage({ params }: { params: { id: string } })
 
     // Truyền dữ liệu xuống client component để render chi tiết trung tâm
     return <ReviewClient center={center} />;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching center:', error);
+    // Log thêm thông tin để debug
+    console.error('Error details:', {
+      message: error?.message,
+      stack: error?.stack,
+      apiUrl: process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'http://localhost:5000',
+    });
     notFound();
   }
 }
