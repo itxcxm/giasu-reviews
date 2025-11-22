@@ -10,19 +10,6 @@ import {
 // Kiểm tra token trong cookie hoặc header Authorization, tự động refresh nếu accessToken hết hạn
 export const authMiddleware = async (req, res, next) => {
   try {
-    // Debug: Log cookies và headers để troubleshoot
-    if (
-      process.env.NODE_ENV === "development" ||
-      process.env.DEBUG === "true"
-    ) {
-      console.log("Auth Middleware - Request cookies:", req.cookies);
-      console.log("Auth Middleware - Request origin:", req.headers.origin);
-      console.log(
-        "Auth Middleware - Authorization header:",
-        req.headers.authorization ? "Present" : "Missing"
-      );
-    }
-
     // Lấy token truy cập từ cookie hoặc header Authorization
     let token = req.cookies.accessToken;
 
@@ -36,16 +23,6 @@ export const authMiddleware = async (req, res, next) => {
 
     // Nếu không có token -> lỗi chưa xác thực
     if (!token) {
-      // Log thêm thông tin để debug
-      if (
-        process.env.NODE_ENV === "development" ||
-        process.env.DEBUG === "true"
-      ) {
-        console.log(
-          "Auth Middleware - No token found. Cookies received:",
-          Object.keys(req.cookies)
-        );
-      }
       return res.status(HTTP_STATUS.UNAUTHORIZED).json({
         success: false,
         message: "Token không được cung cấp",

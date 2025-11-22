@@ -35,17 +35,6 @@ export const getCookieOptions = () => {
   const sameSiteValue = isCrossDomain ? "none" : isProduction ? "lax" : "lax";
   const secureValue = isProduction || sameSiteValue === "none"; // Secure bắt buộc khi sameSite: "none" hoặc production
 
-  // Debug log (chỉ trong development hoặc khi DEBUG=true)
-  if (process.env.NODE_ENV === "development" || process.env.DEBUG === "true") {
-    console.log("Cookie Options:", {
-      sameSite: sameSiteValue,
-      secure: secureValue,
-      isProduction,
-      isCrossDomain,
-      hasClientUrl,
-    });
-  }
-
   return {
     httpOnly: true,
     secure: secureValue, // Secure bắt buộc khi sameSite: "none" hoặc production
