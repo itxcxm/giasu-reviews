@@ -212,7 +212,11 @@ export const centersAPI = {
   },
 
   // Tạo center mới
-  async createCenter(data: CreateCenterData & { imageFile?: File }): Promise<{ success: boolean; data: Center; message?: string }> {
+  // Nếu isAdmin = true, sử dụng route admin (không có rate limit)
+  async createCenter(data: CreateCenterData & { imageFile?: File; isAdmin?: boolean }): Promise<{ success: boolean; data: Center; message?: string }> {
+    // Xác định endpoint dựa trên isAdmin
+    const endpoint = data.isAdmin ? '/api/centers/admin/create' : '/api/centers';
+    
     // Nếu có file, gửi dưới dạng FormData
     if (data.imageFile) {
       const formData = new FormData();
@@ -222,7 +226,7 @@ export const centersAPI = {
       formData.append('website', data.website || '');
       formData.append('image', data.imageFile); // 'image' cho single file upload
 
-      const response = await apiClient.post('/api/centers', formData, {
+      const response = await apiClient.post(endpoint, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -230,7 +234,7 @@ export const centersAPI = {
       return response.data;
     } else {
       // Gửi dưới dạng JSON (backward compatibility với base64)
-      const response = await apiClient.post('/api/centers', data);
+      const response = await apiClient.post(endpoint, data);
       return response.data;
     }
   },

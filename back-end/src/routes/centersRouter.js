@@ -31,6 +31,16 @@ router.post(
   centersController.createCenter
 );
 
+// Route riêng cho admin tạo center (không có rate limit)
+// Admin có thể tạo center không giới hạn
+router.post(
+  "/admin/create",
+  adminMiddleware, // Yêu cầu xác thực admin
+  uploadSingleImage, // Upload 1 ảnh cho center
+  handleUploadError,
+  centersController.createCenter
+);
+
 // Admin routes - Yêu cầu xác thực admin (phải đặt trước routes có :id để tránh conflict)
 // Lấy tất cả reviews từ tất cả centers (admin)
 router.get("/reviews/all", adminMiddleware, centersController.getAllReviews);

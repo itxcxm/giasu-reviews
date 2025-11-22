@@ -63,7 +63,6 @@ export default function AdminCentersPage() {
     address: '',
     phone: '',
     website: '',
-    description: '',
     image: '',
     status: 'active' as 'active' | 'inactive',
   });
@@ -131,7 +130,6 @@ export default function AdminCentersPage() {
         address: center.address || '',
         phone: center.phone || '',
         website: center.website || '',
-        description: '',
         image: center.image || '',
         status: center.status || 'active',
       });
@@ -144,7 +142,6 @@ export default function AdminCentersPage() {
         address: '',
         phone: '',
         website: '',
-        description: '',
         image: '',
         status: 'active',
       });
@@ -197,8 +194,9 @@ export default function AdminCentersPage() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.name || !formData.address || !formData.phone) {
-      alert('Vui lòng điền đầy đủ thông tin bắt buộc');
+    // Chỉ cần kiểm tra tên trung tâm
+    if (!formData.name || !formData.name.trim()) {
+      alert('Vui lòng nhập tên trung tâm');
       return;
     }
 
@@ -209,8 +207,8 @@ export default function AdminCentersPage() {
         // Cập nhật center
         const centerData: any = {
           name: formData.name,
-          address: formData.address,
-          phone: formData.phone,
+          address: formData.address || undefined,
+          phone: formData.phone || undefined,
           website: formData.website || undefined,
         };
         
@@ -247,13 +245,15 @@ export default function AdminCentersPage() {
         
         await loadCenters();
       } else {
-        // Tạo center mới - gửi file nếu có
+        // Tạo center mới - gửi tất cả dữ liệu (address, phone, website là tùy chọn)
+        // Sử dụng route admin để không bị rate limit
         await centersAPI.createCenter({
           name: formData.name,
-          address: formData.address,
-          phone: formData.phone,
+          address: formData.address || undefined,
+          phone: formData.phone || undefined,
           website: formData.website || undefined,
           imageFile: imageFile || undefined,
+          isAdmin: true, // Đánh dấu là admin để sử dụng route admin
         });
         await loadCenters();
       }
@@ -618,25 +618,25 @@ export default function AdminCentersPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="address">Địa chỉ *</Label>
+              <Label htmlFor="address">Địa chỉ</Label>
               <Input
                 id="address"
                 value={formData.address}
                 onChange={(e) =>
                   setFormData({ ...formData, address: e.target.value })
                 }
-                placeholder="Nhập địa chỉ"
+                placeholder="Nhập địa chỉ (tùy chọn)"
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="phone">Điện thoại *</Label>
+              <Label htmlFor="phone">Điện thoại</Label>
               <Input
                 id="phone"
                 value={formData.phone}
                 onChange={(e) =>
                   setFormData({ ...formData, phone: e.target.value })
                 }
-                placeholder="0901234567"
+                placeholder="0901234567 (tùy chọn)"
               />
             </div>
             <div className="grid gap-2">
@@ -647,11 +647,11 @@ export default function AdminCentersPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, website: e.target.value })
                 }
-                placeholder="https://example.com"
+                placeholder="https://example.com (tùy chọn)"
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="image">Hình ảnh</Label>
+              <Label htmlFor="image">Hình ảnh *</Label>
               {imagePreview ? (
                 <div className="relative w-full h-48 border rounded-lg overflow-hidden">
                   <Image
@@ -724,8 +724,7 @@ export default function AdminCentersPage() {
               disabled={
                 submitting ||
                 !formData.name ||
-                !formData.address ||
-                !formData.phone
+                !formData.name.trim()
               }
             >
               {submitting ? 'Đang lưu...' : editingCenter ? 'Cập nhật' : 'Thêm mới'}
