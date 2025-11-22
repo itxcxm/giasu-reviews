@@ -4,19 +4,39 @@ import axios, { AxiosInstance, AxiosError } from 'axios';
 // Lấy API URL từ environment variable hoặc dùng default
 // Trong server-side rendering, có thể cần dùng 127.0.0.1 thay vì localhost
 const getApiBaseUrl = () => {
+  // Ưu tiên NEXT_PUBLIC_API_URL (available cả client và server)
   if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
+    const url = process.env.NEXT_PUBLIC_API_URL.trim();
+    // Đảm bảo URL có protocol
+    if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+      console.warn('NEXT_PUBLIC_API_URL should include protocol (http:// or https://)');
+      return `https://${url}`;
+    }
+    return url;
   }
-  // Trong server-side, có thể cần dùng 127.0.0.1
+  
+  // Fallback cho server-side rendering
   if (typeof window === 'undefined') {
-    // Server-side rendering
     return process.env.API_URL || 'http://127.0.0.1:5000';
   }
-  // Client-side
+  
+  // Fallback cho client-side (chỉ dùng trong development)
+  // Trong production, NEXT_PUBLIC_API_URL phải được set
+  if (process.env.NODE_ENV === 'production') {
+    console.error('NEXT_PUBLIC_API_URL is not set in production! Please configure it in Vercel environment variables.');
+    // Trả về empty string để tránh gọi API sai
+    return '';
+  }
+  
   return 'http://localhost:5000';
 };
 
 const API_BASE_URL = getApiBaseUrl();
+
+// Log để debug (chỉ trong development)
+if (process.env.NODE_ENV === 'development') {
+  console.log('API Base URL:', API_BASE_URL);
+}
 
 // Tạo axios instance với cấu hình mặc định
 const apiClient: AxiosInstance = axios.create({
