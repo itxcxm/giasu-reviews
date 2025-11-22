@@ -19,16 +19,14 @@ export function AdminGuard({ children }: AdminGuardProps) {
       try {
         const response = await adminAPI.checkAuth();
         
-        // Response luôn có success và authenticated (không throw error nữa)
+        // Chỉ kiểm tra xem token có đúng không
         if (response.success && response.authenticated) {
           setIsAuthenticated(true);
           setError(null);
         } else {
-          // Không đăng nhập hoặc không có quyền
+          // Token không hợp lệ hoặc chưa đăng nhập
           setIsAuthenticated(false);
           setError(null);
-          // Redirect to login page
-          router.push('/login');
         }
       } catch (error: any) {
         console.error('Auth check error:', error);
@@ -47,9 +45,8 @@ export function AdminGuard({ children }: AdminGuardProps) {
           // Không redirect ngay, để user thấy thông báo lỗi
           setIsAuthenticated(false);
         } else {
-          // Lỗi khác, redirect về login
+          // Lỗi khác
           setIsAuthenticated(false);
-          router.push('/login');
         }
       } finally {
         setIsLoading(false);
@@ -90,7 +87,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
     );
   }
 
-  // If not authenticated, don't render children (redirect is happening)
+  // If not authenticated, don't render children
   if (!isAuthenticated) {
     return null;
   }
