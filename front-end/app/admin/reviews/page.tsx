@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -35,93 +35,75 @@ import { Plus, Trash2, Search, ChevronLeft, ChevronRight, Star, Upload, X, Eye }
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
+import { centersAPI, Review } from '@/lib/api';
 
-interface Review {
-  id: number;
-  centerName: string;
-  studentName: string;
-  rating: number;
-  comment: string;
-  image?: string;
-  status: 'approved' | 'pending' | 'rejected';
-  createdAt: string;
+interface ReviewWithStatus extends Review {
+  status?: 'approved' | 'pending' | 'rejected';
+  studentName?: string;
 }
-
-const initialReviews: Review[] = [
-  {
-    id: 1,
-    centerName: 'Trung tâm Gia sư Xuất sắc',
-    studentName: 'Nguyễn Văn A',
-    rating: 5,
-    comment: 'Giáo viên rất tận tâm, bé tiến bộ rất nhanh',
-    status: 'approved',
-    createdAt: '2024-03-20',
-  },
-  {
-    id: 2,
-    centerName: 'Gia sư Thành công',
-    studentName: 'Trần Thị B',
-    rating: 4,
-    comment: 'Chất lượng tốt nhưng giá hơi cao',
-    status: 'approved',
-    createdAt: '2024-03-19',
-  },
-  {
-    id: 3,
-    centerName: 'Trung tâm Gia sư Tài năng',
-    studentName: 'Lê Văn C',
-    rating: 3,
-    comment: 'Bình thường, không có gì đặc biệt',
-    status: 'pending',
-    createdAt: '2024-03-18',
-  },
-  {
-    id: 4,
-    centerName: 'Gia sư Online Pro',
-    studentName: 'Phạm Thị D',
-    rating: 2,
-    comment: 'Thời gian kết nối thi thoảng bị gián đoạn',
-    status: 'approved',
-    createdAt: '2024-03-17',
-  },
-  {
-    id: 5,
-    centerName: 'Trung tâm Gia sư Sao Chiều',
-    studentName: 'Hoàng Văn E',
-    rating: 5,
-    comment: 'Xuất sắc! Giáo viên vui vẻ, dễ hiểu',
-    status: 'pending',
-    createdAt: '2024-03-16',
-  },
-];
 
 const ITEMS_PER_PAGE = 5;
 
 export default function AdminReviewsPage() {
-  const [reviews, setReviews] = useState<Review[]>(initialReviews);
+  const [reviews, setReviews] = useState<ReviewWithStatus[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'rejected'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [editingReview, setEditingReview] = useState<Review | null>(null);
-  const [deletingReviewId, setDeletingReviewId] = useState<number | null>(null);
+  const [editingReview, setEditingReview] = useState<ReviewWithStatus | null>(null);
+  const [deletingReview, setDeletingReview] = useState<{ centerId: string; reviewId: string } | null>(null);
+  
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     centerName: '',
     studentName: '',
     rating: 5,
     comment: '',
     image: '',
-    status: 'rejected' as 'approved' | 'pending' | 'rejected',
+    status: 'approved' as 'approved' | 'pending' | 'rejected',
   });
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+
+
+  // Load reviews từ API
+  useEffect(() => {
+    loadReviews();
+  }, []);
+
+  const loadReviews = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await centersAPI.getAllReviews({
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      });
+      
+      // Transform reviews để thêm status và studentName
+      const transformedReviews: ReviewWithStatus[] = (response.data || []).map((review: Review) => ({
+        ...review,
+        status: 'approved' as const, // Tất cả reviews đã được duyệt (vì đã được thêm vào center)
+        studentName: review.reviewerName || 'Người dùng', // Sử dụng reviewerName từ API
+      }));
+      
+      setReviews(transformedReviews);
+    } catch (err: any) {
+      console.error('Error loading reviews:', err);
+      setError('Không thể tải danh sách đánh giá');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredReviews = useMemo(() => {
     return reviews.filter(
       (review) =>
-        (review.centerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          review.studentName.toLowerCase().includes(searchQuery.toLowerCase())) &&
+        (review.centerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          review.studentName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          review.comment?.toLowerCase().includes(searchQuery.toLowerCase())) &&
         (statusFilter === 'all' || review.status === statusFilter)
     );
   }, [reviews, searchQuery, statusFilter]);
@@ -134,20 +116,24 @@ export default function AdminReviewsPage() {
 
   const latestReviews = useMemo(() => {
     return [...reviews]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        return dateB - dateA;
+      })
       .slice(0, 5);
   }, [reviews]);
 
-  const handleOpenDialog = (review?: Review) => {
+  const handleOpenDialog = (review?: ReviewWithStatus) => {
     if (review) {
       setEditingReview(review);
       setFormData({
-        centerName: review.centerName,
-        studentName: review.studentName,
+        centerName: review.centerName || '',
+        studentName: review.studentName || 'Người dùng',
         rating: review.rating,
-        comment: review.comment,
+        comment: review.comment || '',
         image: review.image || '',
-        status: review.status,
+        status: review.status || 'approved',
       });
       setImagePreview(review.image || null);
       setImageFile(null);
@@ -194,48 +180,46 @@ export default function AdminReviewsPage() {
   };
 
   const handleSubmit = () => {
-    if (editingReview) {
-      setReviews(
-        reviews.map((review) =>
-          review.id === editingReview.id
-            ? { ...review, ...formData }
-            : review
-        )
-      );
-    } else {
-      const newReview: Review = {
-        id: Math.max(...reviews.map((r) => r.id), 0) + 1,
-        ...formData,
-        createdAt: new Date().toISOString().split('T')[0],
-      };
-      setReviews([newReview, ...reviews]);
-    }
-    setCurrentPage(1);
+    // Note: Hiện tại không có API để tạo review trực tiếp từ admin
+    // Reviews chỉ được tạo từ users qua center
     handleCloseDialog();
   };
 
-  const handleDelete = (id: number) => {
-    setDeletingReviewId(id);
-    setIsDeleteDialogOpen(true);
+  const handleDelete = (review: ReviewWithStatus) => {
+    if (review.centerId && (review._id || review.id)) {
+      setDeletingReview({
+        centerId: review.centerId,
+        reviewId: review._id || review.id || '',
+      });
+      setIsDeleteDialogOpen(true);
+    }
   };
 
-  const confirmDelete = () => {
-    if (deletingReviewId) {
-      setReviews(reviews.filter((review) => review.id !== deletingReviewId));
-      if (paginatedReviews.length === 1 && currentPage > 1) {
-        setCurrentPage(currentPage - 1);
+  const confirmDelete = async () => {
+    if (deletingReview) {
+      try {
+        await centersAPI.deleteReview(deletingReview.centerId, deletingReview.reviewId);
+        await loadReviews(); // Reload danh sách
+        if (paginatedReviews.length === 1 && currentPage > 1) {
+          setCurrentPage(currentPage - 1);
+        }
+      } catch (error: any) {
+        console.error('Error deleting review:', error);
+        alert('Không thể xóa đánh giá: ' + (error.message || 'Lỗi không xác định'));
       }
     }
     setIsDeleteDialogOpen(false);
-    setDeletingReviewId(null);
+    setDeletingReview(null);
   };
 
   const approvedCount = reviews.filter(r => r.status === 'approved').length;
   const pendingCount = reviews.filter(r => r.status === 'pending').length;
   const rejectedCount = reviews.filter(r => r.status === 'rejected').length;
-  const averageRating = reviews.length > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1) : 0;
+  const averageRating = reviews.length > 0 
+    ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length).toFixed(1) 
+    : '0';
 
-  const getStatusBadgeVariant = (status: string) => {
+  const getStatusBadgeVariant = (status?: string) => {
     switch (status) {
       case 'approved':
         return 'default';
@@ -246,7 +230,7 @@ export default function AdminReviewsPage() {
     }
   };
 
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = (status?: string) => {
     switch (status) {
       case 'rejected':
         return 'Từ chối';
@@ -268,10 +252,6 @@ export default function AdminReviewsPage() {
               Quản lý và duyệt các đánh giá từ học viên
             </p>
           </div>
-          <Button onClick={() => handleOpenDialog()} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Thêm đánh giá mới
-          </Button>
         </div>
 
         {/* Stats */}
@@ -328,32 +308,42 @@ export default function AdminReviewsPage() {
             <CardDescription>5 đánh giá được thêm gần đây nhất</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {latestReviews.map((review) => (
-                <div key={review.id} className="p-3 border rounded-lg hover:bg-muted/50">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="font-medium">{review.centerName}</p>
-                      <p className="text-sm text-muted-foreground">{review.studentName}</p>
+            {loading ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Đang tải...</p>
+              </div>
+            ) : latestReviews.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Chưa có đánh giá nào</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {latestReviews.map((review) => (
+                  <div key={review._id || review.id} className="p-3 border rounded-lg hover:bg-muted/50">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="font-medium">{review.centerName || 'N/A'}</p>
+                        <p className="text-sm text-muted-foreground">{review.studentName || 'Người dùng'}</p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`h-4 w-4 ${i < (review.rating || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+                          />
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star
-                          key={i}
-                          className={`h-4 w-4 ${i < review.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
-                        />
-                      ))}
-                    </div>
+                    {review.comment && <p className="text-sm mb-2">{review.comment}</p>}
+                    {getStatusLabel(review.status) && (
+                      <Badge variant={getStatusBadgeVariant(review.status)}>
+                        {getStatusLabel(review.status)}
+                      </Badge>
+                    )}
                   </div>
-                  <p className="text-sm mb-2">{review.comment}</p>
-                  {getStatusLabel(review.status) && (
-                    <Badge variant={getStatusBadgeVariant(review.status)}>
-                      {getStatusLabel(review.status)}
-                    </Badge>
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -398,7 +388,22 @@ export default function AdminReviewsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedReviews.length === 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    <p className="text-muted-foreground">Đang tải...</p>
+                  </TableCell>
+                </TableRow>
+              ) : error ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    <p className="text-red-500">{error}</p>
+                    <Button onClick={loadReviews} className="mt-4">
+                      Thử lại
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ) : paginatedReviews.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8">
                     <p className="text-muted-foreground">
@@ -408,22 +413,24 @@ export default function AdminReviewsPage() {
                 </TableRow>
               ) : (
                 paginatedReviews.map((review) => (
-                  <TableRow key={review.id}>
-                    <TableCell className="font-medium">{review.id}</TableCell>
-                    <TableCell className="font-medium">{review.centerName}</TableCell>
-                    <TableCell>{review.studentName}</TableCell>
+                  <TableRow key={review._id || review.id}>
+                    <TableCell className="font-medium">
+                      {(review._id || review.id || '').substring(0, 8)}
+                    </TableCell>
+                    <TableCell className="font-medium">{review.centerName || 'N/A'}</TableCell>
+                    <TableCell>{review.studentName || 'Người dùng'}</TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1">
                         {Array.from({ length: 5 }).map((_, i) => (
                           <Star
                             key={i}
-                            className={`h-4 w-4 ${i < review.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+                            className={`h-4 w-4 ${i < (review.rating || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
                           />
                         ))}
                       </div>
                     </TableCell>
                     <TableCell className="max-w-[250px] truncate">
-                      {review.comment}
+                      {review.comment || '-'}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -437,7 +444,7 @@ export default function AdminReviewsPage() {
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => handleDelete(review.id)}
+                          onClick={() => handleDelete(review)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -489,7 +496,7 @@ export default function AdminReviewsPage() {
         </div>
       </div>
 
-      {/* Add/Edit Dialog */}
+      {/* View Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -504,69 +511,69 @@ export default function AdminReviewsPage() {
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="grid gap-2">
-                  <Label htmlFor="centerName">Tên trung tâm *</Label>
-                  <Input
-                    id="centerName"
-                    value={formData.centerName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, centerName: e.target.value })
-                    }
-                    placeholder="Nhập tên trung tâm"
-                    readOnly={!!editingReview}
-                    className={editingReview ? 'bg-muted cursor-default' : ''}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="studentName">Tên học viên *</Label>
-                  <Input
-                    id="studentName"
-                    value={formData.studentName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, studentName: e.target.value })
-                    }
-                    placeholder="Nhập tên học viên"
-                    readOnly={!!editingReview}
-                    className={editingReview ? 'bg-muted cursor-default' : ''}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="grid gap-2">
-                  <Label htmlFor="rating">Đánh giá (1-5 sao) *</Label>
-                  <select
-                    id="rating"
-                    value={formData.rating}
-                    onChange={(e) =>
-                      setFormData({ ...formData, rating: parseInt(e.target.value) })
-                    }
-                    disabled={!!editingReview}
-                    className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${editingReview ? 'bg-muted cursor-default' : ''}`}
-                  >
-                    {Array.from({ length: 5 }, (_, i) => i + 1).map((num) => (
-                      <option key={num} value={num}>
-                        {num} sao
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
               <div className="grid gap-2">
-                <Label htmlFor="comment">Nhận xét</Label>
-                <Textarea
-                  id="comment"
-                  value={formData.comment}
+                <Label htmlFor="centerName">Tên trung tâm *</Label>
+                <Input
+                  id="centerName"
+                  value={formData.centerName}
                   onChange={(e) =>
-                    setFormData({ ...formData, comment: e.target.value })
+                    setFormData({ ...formData, centerName: e.target.value })
                   }
-                  placeholder="Nhập nhận xét về trung tâm"
-                  rows={4}
+                  placeholder="Nhập tên trung tâm"
                   readOnly={!!editingReview}
                   className={editingReview ? 'bg-muted cursor-default' : ''}
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="image">Hình ảnh</Label>
+                <Label htmlFor="studentName">Tên học viên *</Label>
+                <Input
+                  id="studentName"
+                  value={formData.studentName}
+                  onChange={(e) =>
+                    setFormData({ ...formData, studentName: e.target.value })
+                  }
+                  placeholder="Nhập tên học viên"
+                  readOnly={!!editingReview}
+                  className={editingReview ? 'bg-muted cursor-default' : ''}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid gap-2">
+                <Label htmlFor="rating">Đánh giá (1-5 sao) *</Label>
+                <select
+                  id="rating"
+                  value={formData.rating}
+                  onChange={(e) =>
+                    setFormData({ ...formData, rating: parseInt(e.target.value) })
+                  }
+                  disabled={!!editingReview}
+                  className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${editingReview ? 'bg-muted cursor-default' : ''}`}
+                >
+                  {Array.from({ length: 5 }, (_, i) => i + 1).map((num) => (
+                    <option key={num} value={num}>
+                      {num} sao
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="comment">Nhận xét</Label>
+              <Textarea
+                id="comment"
+                value={formData.comment}
+                onChange={(e) =>
+                  setFormData({ ...formData, comment: e.target.value })
+                }
+                placeholder="Nhập nhận xét về trung tâm"
+                rows={4}
+                readOnly={!!editingReview}
+                className={editingReview ? 'bg-muted cursor-default' : ''}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="image">Hình ảnh</Label>
               {imagePreview ? (
                 <div className="relative w-full h-48 border rounded-lg overflow-hidden">
                   <Image
@@ -574,6 +581,7 @@ export default function AdminReviewsPage() {
                     alt="Preview"
                     fill
                     className="object-cover"
+                    unoptimized
                   />
                   {!editingReview && (
                     <Button
@@ -620,27 +628,9 @@ export default function AdminReviewsPage() {
             </div>
           </form>
           <DialogFooter>
-            {!editingReview ? (
-              <>
-                <Button type="button" variant="outline" onClick={handleCloseDialog}>
-                  Hủy
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={
-                    !formData.centerName ||
-                    !formData.studentName
-                  }
-                >
-                  Thêm mới
-                </Button>
-              </>
-            ) : (
-              <Button type="button" onClick={handleCloseDialog}>
-                Đóng
-              </Button>
-            )}
+            <Button type="button" onClick={handleCloseDialog}>
+              Đóng
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

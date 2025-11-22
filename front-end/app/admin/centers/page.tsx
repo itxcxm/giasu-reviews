@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -35,103 +35,74 @@ import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight, Upload, X } fr
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
-
-interface Center {
-  id: number;
-  name: string;
-  address: string;
-  phone: string;
-  description: string;
-  image?: string;
-  status: 'active' | 'inactive';
-  createdAt: string;
-}
-
-const initialCenters: Center[] = [
-  {
-    id: 1,
-    name: 'Trung tâm Gia sư Xuất sắc',
-    address: '123 Nguyễn Văn Cừ, Quận 5, TP.HCM',
-    phone: '0901234567',
-    description: 'Trung tâm gia sư uy tín với đội ngũ giáo viên chất lượng cao',
-    status: 'active',
-    createdAt: '2024-01-15',
-  },
-  {
-    id: 2,
-    name: 'Gia sư Thành công',
-    address: '456 Lê Văn Sỹ, Quận 3, TP.HCM',
-    phone: '0912345678',
-    description: 'Chuyên gia sư các môn văn hóa cấp 2, cấp 3',
-    status: 'active',
-    createdAt: '2024-02-20',
-  },
-  {
-    id: 3,
-    name: 'Trung tâm Gia sư Tài năng',
-    address: '789 Hoàng Văn Thụ, Tân Bình, TP.HCM',
-    phone: '0923456789',
-    description: 'Gia sư chuyên luyện thi đại học và học sinh giỏi',
-    status: 'inactive',
-    createdAt: '2024-03-10',
-  },
-  {
-    id: 4,
-    name: 'Gia sư Online Pro',
-    address: '321 Trần Hưng Đạo, Quận 1, TP.HCM',
-    phone: '0934567890',
-    description: 'Gia sư trực tuyến toàn quốc, linh hoạt về thời gian',
-    status: 'active',
-    createdAt: '2024-03-15',
-  },
-  {
-    id: 5,
-    name: 'Trung tâm Gia sư Sao Chiều',
-    address: '555 Nguyễn Huệ, Quận 1, TP.HCM',
-    phone: '0945678901',
-    description: 'Gia sư tiểu học, trung học, chuẩn bị vào lớp 10',
-    status: 'active',
-    createdAt: '2024-03-18',
-  },
-  {
-    id: 6,
-    name: 'Gia sư Tương lai',
-    address: '888 Cao Thắng, Quận 3, TP.HCM',
-    phone: '0956789012',
-    description: 'Chuyên gia sư Toán, Lý, Hóa, Anh văn',
-    status: 'active',
-    createdAt: '2024-03-20',
-  },
-];
+import { centersAPI, Center, imageToBase64 } from '@/lib/api';
 
 const ITEMS_PER_PAGE = 5;
 
+interface CenterWithStatus extends Center {
+  status?: 'active' | 'inactive';
+}
+
 export default function AdminCentersPage() {
-  const [centers, setCenters] = useState<Center[]>(initialCenters);
+  const [centers, setCenters] = useState<CenterWithStatus[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [unapprovedPage, setUnapprovedPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [editingCenter, setEditingCenter] = useState<Center | null>(null);
-  const [deletingCenterId, setDeletingCenterId] = useState<number | null>(null);
+  const [editingCenter, setEditingCenter] = useState<CenterWithStatus | null>(null);
+  const [deletingCenterId, setDeletingCenterId] = useState<string | null>(null);
+  
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     address: '',
     phone: '',
+    website: '',
     description: '',
     image: '',
     status: 'active' as 'active' | 'inactive',
   });
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Load centers từ API
+  useEffect(() => {
+    loadCenters();
+  }, []);
+
+  const loadCenters = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await centersAPI.getCenters({
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      });
+      
+      // Transform centers để thêm status từ isVerified
+      const transformedCenters: CenterWithStatus[] = (response.data || []).map((center: Center) => ({
+        ...center,
+        status: center.isVerified ? 'active' : 'inactive',
+      }));
+      
+      setCenters(transformedCenters);
+    } catch (err: any) {
+      console.error('Error loading centers:', err);
+      setError('Không thể tải danh sách trung tâm');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredCenters = useMemo(() => {
     return centers.filter(
       (center) =>
         (center.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          center.address.toLowerCase().includes(searchQuery.toLowerCase())) &&
+          (center.address && center.address.toLowerCase().includes(searchQuery.toLowerCase()))) &&
         (statusFilter === 'all' || center.status === statusFilter)
     );
   }, [centers, searchQuery, statusFilter]);
@@ -152,16 +123,17 @@ export default function AdminCentersPage() {
     return unapprovedCenters.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [unapprovedCenters, unapprovedPage]);
 
-  const handleOpenDialog = (center?: Center) => {
+  const handleOpenDialog = (center?: CenterWithStatus) => {
     if (center) {
       setEditingCenter(center);
       setFormData({
         name: center.name,
-        address: center.address,
-        phone: center.phone,
-        description: center.description,
+        address: center.address || '',
+        phone: center.phone || '',
+        website: center.website || '',
+        description: '',
         image: center.image || '',
-        status: center.status,
+        status: center.status || 'active',
       });
       setImagePreview(center.image || null);
       setImageFile(null);
@@ -171,6 +143,7 @@ export default function AdminCentersPage() {
         name: '',
         address: '',
         phone: '',
+        website: '',
         description: '',
         image: '',
         status: 'active',
@@ -188,16 +161,18 @@ export default function AdminCentersPage() {
     setImageFile(null);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-        setFormData({ ...formData, image: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      try {
+        const base64 = await imageToBase64(file);
+        setImagePreview(base64);
+        setFormData({ ...formData, image: base64 });
+      } catch (error) {
+        console.error('Error converting image:', error);
+        alert('Không thể xử lý hình ảnh');
+      }
     }
   };
 
@@ -207,54 +182,86 @@ export default function AdminCentersPage() {
     setFormData({ ...formData, image: '' });
   };
 
-  const handleSubmit = () => {
-    if (editingCenter) {
-      setCenters(
-        centers.map((center) =>
-          center.id === editingCenter.id
-            ? { ...center, ...formData }
-            : center
-        )
-      );
-    } else {
-      const newCenter: Center = {
-        id: Math.max(...centers.map((c) => c.id), 0) + 1,
-        ...formData,
-        createdAt: new Date().toISOString().split('T')[0],
-      };
-      setCenters([newCenter, ...centers]);
+  const handleSubmit = async () => {
+    if (!formData.name || !formData.address || !formData.phone) {
+      alert('Vui lòng điền đầy đủ thông tin bắt buộc');
+      return;
     }
-    setCurrentPage(1);
-    handleCloseDialog();
+
+    try {
+      setSubmitting(true);
+      
+      const centerData = {
+        name: formData.name,
+        address: formData.address,
+        phone: formData.phone,
+        website: formData.website || undefined,
+        image: formData.image || undefined,
+      };
+
+      if (editingCenter) {
+        // Cập nhật center
+        const response = await centersAPI.updateCenter(
+          editingCenter._id || editingCenter.id || '',
+          centerData
+        );
+        
+        // Nếu status thay đổi, cập nhật isVerified
+        if (formData.status !== editingCenter.status) {
+          await centersAPI.verifyCenter(
+            editingCenter._id || editingCenter.id || '',
+            formData.status === 'active'
+          );
+        }
+        
+        await loadCenters();
+      } else {
+        // Tạo center mới
+        await centersAPI.createCenter(centerData);
+        await loadCenters();
+      }
+      
+      setCurrentPage(1);
+      handleCloseDialog();
+    } catch (error: any) {
+      console.error('Error submitting center:', error);
+      alert('Lỗi: ' + (error.message || 'Không thể lưu trung tâm'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDelete = (id: number) => {
-    setDeletingCenterId(id);
+  const handleDelete = (center: CenterWithStatus) => {
+    setDeletingCenterId(center._id || center.id || null);
     setIsDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (deletingCenterId) {
-      setCenters(centers.filter((center) => center.id !== deletingCenterId));
-      if (paginatedCenters.length === 1 && currentPage > 1) {
-        setCurrentPage(currentPage - 1);
+      try {
+        await centersAPI.deleteCenter(deletingCenterId);
+        await loadCenters();
+        if (paginatedCenters.length === 1 && currentPage > 1) {
+          setCurrentPage(currentPage - 1);
+        }
+      } catch (error: any) {
+        console.error('Error deleting center:', error);
+        alert('Không thể xóa trung tâm: ' + (error.message || 'Lỗi không xác định'));
       }
     }
     setIsDeleteDialogOpen(false);
     setDeletingCenterId(null);
   };
 
-  const toggleStatus = (id: number) => {
-    setCenters(
-      centers.map((center) =>
-        center.id === id
-          ? {
-              ...center,
-              status: center.status === 'active' ? 'inactive' : 'active',
-            }
-          : center
-      )
-    );
+  const toggleStatus = async (center: CenterWithStatus) => {
+    try {
+      const newStatus = center.isVerified ? false : true;
+      await centersAPI.verifyCenter(center._id || center.id || '', newStatus);
+      await loadCenters();
+    } catch (error: any) {
+      console.error('Error toggling status:', error);
+      alert('Không thể thay đổi trạng thái: ' + (error.message || 'Lỗi không xác định'));
+    }
   };
 
   const activeCentersCount = centers.filter(c => c.status === 'active').length;
@@ -324,7 +331,11 @@ export default function AdminCentersPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {unapprovedCenters.length === 0 ? (
+            {loading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>Đang tải...</p>
+              </div>
+            ) : unapprovedCenters.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <p>Không có trung tâm nào chưa duyệt</p>
               </div>
@@ -332,11 +343,15 @@ export default function AdminCentersPage() {
               <>
                 <div className="space-y-3 mb-4">
                   {paginatedUnapprovedCenters.map((center) => (
-                    <div key={center.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50">
+                    <div key={center._id || center.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50">
                       <div className="flex-1">
                         <p className="font-medium">{center.name}</p>
-                        <p className="text-sm text-muted-foreground">{center.address}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{center.createdAt}</p>
+                        <p className="text-sm text-muted-foreground">{center.address || 'N/A'}</p>
+                        {center.createdAt && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Date(center.createdAt).toLocaleDateString('vi-VN')}
+                          </p>
+                        )}
                       </div>
                       <Badge variant="secondary">
                         Chưa duyệt
@@ -429,7 +444,22 @@ export default function AdminCentersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedCenters.length === 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    <p className="text-muted-foreground">Đang tải...</p>
+                  </TableCell>
+                </TableRow>
+              ) : error ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    <p className="text-red-500">{error}</p>
+                    <Button onClick={loadCenters} className="mt-4">
+                      Thử lại
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ) : paginatedCenters.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8">
                     <p className="text-muted-foreground">
@@ -439,20 +469,22 @@ export default function AdminCentersPage() {
                 </TableRow>
               ) : (
                 paginatedCenters.map((center) => (
-                  <TableRow key={center.id}>
-                    <TableCell className="font-medium">{center.id}</TableCell>
+                  <TableRow key={center._id || center.id}>
+                    <TableCell className="font-medium">
+                      {(center._id || center.id || '').substring(0, 8)}
+                    </TableCell>
                     <TableCell className="font-medium">{center.name}</TableCell>
                     <TableCell className="max-w-[200px] truncate">
-                      {center.address}
+                      {center.address || 'N/A'}
                     </TableCell>
-                    <TableCell>{center.phone}</TableCell>
+                    <TableCell>{center.phone || 'N/A'}</TableCell>
                     <TableCell>
                       <Badge
                         variant={
                           center.status === 'active' ? 'default' : 'secondary'
                         }
                         className="cursor-pointer"
-                        onClick={() => toggleStatus(center.id)}
+                        onClick={() => toggleStatus(center)}
                       >
                         {center.status === 'active'
                           ? 'Đã duyệt'
@@ -471,7 +503,7 @@ export default function AdminCentersPage() {
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => handleDelete(center.id)}
+                          onClick={() => handleDelete(center)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -571,15 +603,14 @@ export default function AdminCentersPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="description">Mô tả</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
+              <Label htmlFor="website">Website</Label>
+              <Input
+                id="website"
+                value={formData.website}
                 onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
+                  setFormData({ ...formData, website: e.target.value })
                 }
-                placeholder="Nhập mô tả về trung tâm"
-                rows={3}
+                placeholder="https://example.com"
               />
             </div>
             <div className="grid gap-2">
@@ -591,6 +622,7 @@ export default function AdminCentersPage() {
                     alt="Preview"
                     fill
                     className="object-cover"
+                    unoptimized
                   />
                   <Button
                     type="button"
@@ -626,37 +658,40 @@ export default function AdminCentersPage() {
                 </div>
               )}
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="status">Trạng thái</Label>
-              <select
-                id="status"
-                value={formData.status}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    status: e.target.value as 'active' | 'inactive',
-                  })
-                }
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <option value="active">Đã duyệt</option>
-                <option value="inactive">Chưa duyệt</option>
-              </select>
-            </div>
+            {editingCenter && (
+              <div className="grid gap-2">
+                <Label htmlFor="status">Trạng thái</Label>
+                <select
+                  id="status"
+                  value={formData.status}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      status: e.target.value as 'active' | 'inactive',
+                    })
+                  }
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <option value="active">Đã duyệt</option>
+                  <option value="inactive">Chưa duyệt</option>
+                </select>
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={handleCloseDialog}>
+            <Button variant="outline" onClick={handleCloseDialog} disabled={submitting}>
               Hủy
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={
+                submitting ||
                 !formData.name ||
                 !formData.address ||
                 !formData.phone
               }
             >
-              {editingCenter ? 'Cập nhật' : 'Thêm mới'}
+              {submitting ? 'Đang lưu...' : editingCenter ? 'Cập nhật' : 'Thêm mới'}
             </Button>
           </DialogFooter>
         </DialogContent>

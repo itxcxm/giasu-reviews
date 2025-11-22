@@ -5,48 +5,32 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, Users, Plus, X, Upload } from 'lucide-react';
+import { ArrowLeft, Users, X, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
+import { centersAPI } from '@/lib/api';
 
 // Component chính cho trang Thêm Trung Tâm
 export default function AddCenterPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Trạng thái cho các môn học được chọn
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
-
   // Trạng thái cho file hình ảnh và hình xem trước
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   // Trạng thái cho dữ liệu biểu mẫu
   const [formData, setFormData] = useState({
     name: '',
     address: '',
-    description: '',
     phone: '',
-    email: '',
     website: '',
-    students: '',
-    yearsActive: '',
   });
-
-  // Xử lý chọn/bỏ chọn môn học
-  const handleSubjectToggle = (subject: string) => {
-    if (selectedSubjects.includes(subject)) {
-      setSelectedSubjects(selectedSubjects.filter((s) => s !== subject));
-    } else {
-      setSelectedSubjects([...selectedSubjects, subject]);
-    }
-  };
 
   // Xử lý thay đổi dữ liệu đầu vào trong form
   const handleInputChange = (
@@ -172,29 +156,65 @@ export default function AddCenterPage() {
     setImagePreview(null);
   };
 
+  // Function gửi request về back-end
+  const submitCenterData = async () => {
+    try {
+      setLoading(true);
+
+      // Gửi file trực tiếp thay vì base64
+      const response = await centersAPI.createCenter({
+        name: formData.name.trim(),
+        address: formData.address.trim() || undefined,
+        phone: formData.phone.trim() || undefined,
+        website: formData.website.trim() || undefined,
+        imageFile: imageFile || undefined,
+      });
+
+      // Kiểm tra response thành công
+      if (response.success) {
+        toast({
+          title: 'Thành công!',
+          description: response.message || 'Trung tâm đã được thêm thành công. Đang chờ duyệt.',
+        });
+
+        // Chuyển về trang chủ sau 1.5 giây
+        setTimeout(() => {
+          router.push('/');
+        }, 1500);
+      } else {
+        throw new Error(response.message || 'Không thể thêm trung tâm');
+      }
+    } catch (error: any) {
+      console.error('Error creating center:', error);
+      throw error; // Re-throw để handleSubmit xử lý
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Xử lý gửi form thêm trung tâm
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Yêu cầu chọn ít nhất một môn học (nếu có phần này)
-    if (selectedSubjects.length === 0) {
+    // Validation
+    if (!formData.name.trim()) {
       toast({
         title: 'Lỗi',
-        description: 'Vui lòng chọn ít nhất một môn học',
+        description: 'Vui lòng nhập tên trung tâm',
         variant: 'destructive',
       });
       return;
     }
 
-    // Thông báo thành công và chuyển hướng sau 1,5s
-    toast({
-      title: 'Thành công!',
-      description: 'Trung tâm đã được thêm thành công.',
-    });
-
-    setTimeout(() => {
-      router.push('/');
-    }, 1500);
+    try {
+      await submitCenterData();
+    } catch (error: any) {
+      toast({
+        title: 'Lỗi',
+        description: error.message || 'Không thể thêm trung tâm. Vui lòng thử lại.',
+        variant: 'destructive',
+      });
+    }
   };
 
   // Giao diện trang thêm trung tâm
@@ -262,16 +282,13 @@ export default function AddCenterPage() {
 
                 {/* Trường nhập: Địa chỉ */}
                 <div className="space-y-2">
-                  <Label htmlFor="address">
-                    Địa chỉ
-                  </Label>
+                  <Label htmlFor="address">Địa chỉ</Label>
                   <Input
                     id="address"
                     name="address"
                     placeholder="Số nhà, tên đường, quận/huyện, thành phố"
                     value={formData.address}
                     onChange={handleInputChange}
-                    required
                     className="text-base"
                   />
                 </div>
@@ -369,14 +386,15 @@ export default function AddCenterPage() {
 
                 {/* Nhóm nút Thêm Trung Tâm và Hủy */}
                 <div className="flex gap-4 pt-4">
-                  <Button type="submit" size="lg" className="flex-1">
-                    Thêm Trung Tâm
+                  <Button type="submit" size="lg" className="flex-1" disabled={loading}>
+                    {loading ? 'Đang xử lý...' : 'Thêm Trung Tâm'}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     size="lg"
                     onClick={() => router.push('/')}
+                    disabled={loading}
                   >
                     Hủy
                   </Button>

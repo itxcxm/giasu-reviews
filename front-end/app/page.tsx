@@ -1,94 +1,75 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Search, Star, MapPin, Clock, Users } from 'lucide-react';
+import { Search, Star, MapPin, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-
-// Dữ liệu giả định các trung tâm gia sư
-const mockCenters = [
-  {
-    id: '1',
-    name: 'Trung Tâm Gia Sư Ánh Dương',
-    address: '123 Nguyễn Huệ, Quận 1, TP.HCM',
-    rating: 4.8,
-    reviewCount: 156,
-    image: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=400&h=250&fit=crop',
-    latestReviewDate: '2024-01-20',
-  },
-  {
-    id: '2',
-    name: 'Trung Tâm Gia Sư Việt Anh',
-    address: '456 Lê Lợi, Quận 3, TP.HCM',
-    rating: 4.6,
-    reviewCount: 98,
-    image: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=400&h=250&fit=crop',
-    latestReviewDate: '2024-01-12',
-  },
-  {
-    id: '3',
-    name: 'Trung Tâm Gia Sư Thanh Xuân',
-    address: '789 Trần Hưng Đạo, Quận 5, TP.HCM',
-    rating: 4.9,
-    reviewCount: 203,
-    image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&h=250&fit=crop',
-    latestReviewDate: '2024-01-14',
-  },
-  {
-    id: '4',
-    name: 'Trung Tâm Gia Sư Minh Khai',
-    address: '321 Điện Biên Phủ, Quận 10, TP.HCM',
-    rating: 4.5,
-    reviewCount: 67,
-    image: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=400&h=250&fit=crop',
-    latestReviewDate: '2024-01-11',
-  },
-  {
-    id: '5',
-    name: 'Trung Tâm Gia Sư Tân Phú',
-    address: '654 Lạc Long Quân, Quận Tân Phú, TP.HCM',
-    rating: 4.7,
-    reviewCount: 134,
-    image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=400&h=250&fit=crop',
-    latestReviewDate: '2024-01-13',
-  },
-];
-
-// Sắp xếp trung tâm theo ngày đánh giá mới nhất (mới nhất lên đầu)
-const sortByLatestReview = (centers: typeof mockCenters) => {
-  return [...centers].sort((a, b) => {
-    const dateA = new Date(a.latestReviewDate).getTime();
-    const dateB = new Date(b.latestReviewDate).getTime();
-    return dateB - dateA; // Giảm dần (mới nhất trước)
-  });
-};
+import { centersAPI, Center } from '@/lib/api';
 
 export default function Home() {
   // Trạng thái từ khóa tìm kiếm
   const [searchQuery, setSearchQuery] = useState('');
-  // Trạng thái danh sách trung tâm đã lọc
-  const [filteredCenters, setFilteredCenters] = useState(sortByLatestReview(mockCenters));
+  // Trạng thái danh sách trung tâm
+  const [centers, setCenters] = useState<Center[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Xử lý tìm kiếm trung tâm
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (query.trim() === '') {
-      // Nếu ô tìm kiếm rỗng, hiển thị lại toàn bộ (sắp xếp mới nhất)
-      setFilteredCenters(sortByLatestReview(mockCenters));
-    } else {
-      // Nếu có tìm kiếm, lọc và vẫn giữ tiêu chí mới nhất
-      const filtered = mockCenters.filter(
-        (center) =>
-          center.name.toLowerCase().includes(query.toLowerCase()) ||
-          center.address.toLowerCase().includes(query.toLowerCase())
-      );
-      setFilteredCenters(sortByLatestReview(filtered));
+  // Load danh sách centers từ API
+  useEffect(() => {
+    loadCenters();
+  }, []);
+
+  const loadCenters = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await centersAPI.getCenters({
+        isVerified: true, // Chỉ lấy centers đã được duyệt
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+        limit: 50,
+      });
+      setCenters(response.data || []);
+    } catch (err) {
+      console.error('Error loading centers:', err);
+      setError('Không thể tải danh sách trung tâm');
+    } finally {
+      setLoading(false);
     }
   };
+
+  // Xử lý tìm kiếm trung tâm
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    try {
+      setLoading(true);
+      const response = await centersAPI.getCenters({
+        search: query,
+        isVerified: true,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+        limit: 50,
+      });
+      setCenters(response.data || []);
+    } catch (err) {
+      console.error('Error searching centers:', err);
+      setError('Không thể tìm kiếm trung tâm');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Lọc centers theo search query (client-side fallback)
+  const filteredCenters = centers.filter(
+    (center) =>
+      !searchQuery ||
+      center.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (center.address && center.address.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
@@ -134,63 +115,101 @@ export default function Home() {
         </div>
 
         {/* Chỉ hiện tiêu đề "Mới Cập Nhật" nếu không tìm kiếm */}
-        <div className={searchQuery.trim() === '' ? 'block ' + ' mb-6' : 'hidden' }>
-          <p className="text-slate-600 text-2xl font-bold">
-            Mới Cập Nhật
-          </p>
-        </div>
-
-        {/* Lưới danh sách trung tâm */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredCenters.map((center) => (
-            <Link key={center.id} href={`/review/${center.id}`}>
-              <Card className="h-full hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer border-slate-200 overflow-hidden">
-                <div className="relative w-full h-48 overflow-hidden bg-slate-100">
-                  <Image
-                    src={center.image}
-                    alt={center.name}
-                    fill
-                    className="object-cover transition-transform duration-300 hover:scale-110"
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                    unoptimized
-                  />
-                  {/* Badge hiển thị điểm đánh giá */}
-                  <div className="absolute top-3 right-3">
-                    <Badge variant="secondary" className="bg-white/90 backdrop-blur-sm text-yellow-700 border-yellow-200 shadow-sm">
-                      <Star className="w-3 h-3 fill-yellow-500 text-yellow-500 mr-1" />
-                      {center.rating}
-                    </Badge>
-                  </div>
-                </div>
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <CardTitle className="text-xl leading-tight">{center.name}</CardTitle>
-                  </div>
-                  <CardDescription className="flex items-start gap-2">
-                    <MapPin className="w-4 h-4 shrink-0 mt-0.5 text-slate-400" />
-                    <span className="text-sm">{center.address}</span>
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between pt-4 border-t text-xs text-slate-500">
-                    <div className="flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5" />
-                      <span>{center.reviewCount} đánh giá</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-
-        {/* Khi không có trung tâm phù hợp */}
-        {filteredCenters.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-slate-500 text-lg">
-              Không tìm thấy trung tâm nào phù hợp với từ khóa &quot;{searchQuery}&quot;
+        {!searchQuery && (
+          <div className="mb-6">
+            <p className="text-slate-600 text-2xl font-bold">
+              Mới Cập Nhật
             </p>
           </div>
+        )}
+
+        {/* Loading state */}
+        {loading && (
+          <div className="text-center py-12">
+            <p className="text-slate-500 text-lg">Đang tải...</p>
+          </div>
+        )}
+
+        {/* Error state */}
+        {error && !loading && (
+          <div className="text-center py-12">
+            <p className="text-red-500 text-lg">{error}</p>
+            <Button onClick={loadCenters} className="mt-4">
+              Thử lại
+            </Button>
+          </div>
+        )}
+
+        {/* Lưới danh sách trung tâm */}
+        {!loading && !error && (
+          <>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {filteredCenters.map((center) => {
+                const centerId = center._id || center.id;
+                if (!centerId) return null;
+                
+                return (
+                <Link key={centerId} href={`/review/${centerId}`}>
+                  <Card className="h-full hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer border-slate-200 overflow-hidden">
+                    <div className="relative w-full aspect-video overflow-hidden bg-slate-100">
+                      {center.image ? (
+                        <Image
+                          src={center.image}
+                          alt={center.name}
+                          fill
+                          className="object-contain transition-transform duration-300 hover:scale-105"
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-slate-200">
+                          <Users className="w-12 h-12 text-slate-400" />
+                        </div>
+                      )}
+                      {/* Badge hiển thị điểm đánh giá */}
+                      <div className="absolute top-3 right-3">
+                        <Badge variant="secondary" className="bg-white/90 backdrop-blur-sm text-yellow-700 border-yellow-200 shadow-sm">
+                          <Star className="w-3 h-3 fill-yellow-500 text-yellow-500 mr-1" />
+                          {center.rating || 0}
+                        </Badge>
+                      </div>
+                    </div>
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <CardTitle className="text-xl leading-tight">{center.name}</CardTitle>
+                      </div>
+                      {center.address && (
+                        <CardDescription className="flex items-start gap-2">
+                          <MapPin className="w-4 h-4 shrink-0 mt-0.5 text-slate-400" />
+                          <span className="text-sm">{center.address}</span>
+                        </CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between pt-4 border-t text-xs text-slate-500">
+                        <div className="flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5" />
+                          <span>{center.reviewCount || 0} đánh giá</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+                );
+              })}
+            </div>
+
+            {/* Khi không có trung tâm phù hợp */}
+            {filteredCenters.length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-slate-500 text-lg">
+                  {searchQuery
+                    ? `Không tìm thấy trung tâm nào phù hợp với từ khóa "${searchQuery}"`
+                    : 'Chưa có trung tâm nào'}
+                </p>
+              </div>
+            )}
+          </>
         )}
       </main>
 

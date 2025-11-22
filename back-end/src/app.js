@@ -2,11 +2,16 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import { connectDB } from "./config/database.js";
-import userRouter from "./routes/userRouter.js";
+import connectDB from "./config/database.js";
+import adminRouter from "./routes/adminRouter.js";
+import centersRouter from "./routes/centersRouter.js";
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT;
+
+// Trust proxy để lấy đúng IP từ headers (khi đứng sau proxy/load balancer)
+// Cần thiết cho rate limiting hoạt động chính xác
+app.set("trust proxy", 1);
 
 // Cấu hình các nguồn cho phép truy cập CORS
 const allowedOrigins = process.env.CLIENT_URL
@@ -37,21 +42,30 @@ app.use(
 
 // Thiết lập middleware xử lý cookie và các dữ liệu body
 app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Tăng giới hạn kích thước body để hỗ trợ upload nhiều ảnh base64 (tối đa 5 ảnh x 10MB = 50MB)
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Định nghĩa route gốc kiểm tra server hoạt động
-
+app.get("/", (req, res) => {
+  res.json({
+    message: "Server is running",
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // Định nghĩa route kiểm tra sức khỏe hệ thống
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+  });
+});
 
+// Đăng ký router cho API
+app.use("/api/admin", adminRouter);
+app.use("/api/centers", centersRouter);
 
-// Đăng ký router cho API user
-// app.use("/api/auth", authRouter);
-// app.use("/api/projects", projectRouter);
-// app.use("/api/tasks", taskRouter);
-
-// Xử lý route không tồn tại (404 Not Found)
 app.use((req, res) => {
   res.status(404).json({
     message: "Route not found",
@@ -71,6 +85,16 @@ app.use((err, req, res, next) => {
     });
   }
 
+  // Xử lý lỗi PayloadTooLargeError
+  if (err.type === "entity.too.large" || err.status === 413) {
+    return res.status(413).json({
+      success: false,
+      message:
+        "Kích thước dữ liệu quá lớn. Vui lòng giảm số lượng hoặc kích thước ảnh.",
+      error: process.env.NODE_ENV === "development" ? err.message : {},
+    });
+  }
+
   // Xử lý lỗi mặc định
   res.status(err.status || 500).json({
     message: err.message || "Something went wrong!",
@@ -81,16 +105,25 @@ app.use((err, req, res, next) => {
 // Hàm khởi động server (kết nối DB và lắng nghe kết nối)
 const startServer = async () => {
   try {
+    console.log("🚀 Đang khởi động server...");
+
     // Kết nối database
     await connectDB();
 
     // Khởi động server lắng nghe cổng PORT
     app.listen(PORT, () => {
-      console.log(`Server đang chạy tại http://localhost:${PORT}`);
-      console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+      console.log("=".repeat(50));
+      console.log(`✅ Server đang chạy tại http://localhost:${PORT}`);
+      console.log(`📝 Environment: ${process.env.NODE_ENV || "development"}`);
+      console.log(`🌐 API Base URL: http://localhost:${PORT}/api`);
+      console.log("=".repeat(50));
     });
   } catch (error) {
-    console.error("Không thể khởi động server:", error);
+    console.error("❌ Không thể khởi động server:", error.message);
+    console.error("💡 Vui lòng kiểm tra:");
+    console.error("   1. MongoDB đã được cài đặt và đang chạy");
+    console.error("   2. File .env đã được cấu hình đúng");
+    console.error("   3. Port không bị chiếm bởi process khác");
     process.exit(1);
   }
 };

@@ -22,15 +22,17 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
+import { centersAPI, imageToBase64, Center } from '@/lib/api';
 
 // Định nghĩa props cho component ReviewClient
 interface ReviewClientProps {
-  center: any;
+  center: Center;
 }
 
 // Component chính quản lý hiển thị, gửi đánh giá và xem ảnh trung tâm
@@ -45,19 +47,37 @@ export default function ReviewClient({ center }: ReviewClientProps) {
   const [selectedRating, setSelectedRating] = useState(5);
   // State lưu nội dung bình luận đánh giá
   const [reviewText, setReviewText] = useState('');
+  // State lưu tên người đánh giá
+  const [reviewerName, setReviewerName] = useState('');
   // State lưu danh sách ảnh đánh giá được tải lên: Mỗi ảnh có file và preview
   const [reviewImages, setReviewImages] = useState<{ file: File; preview: string }[]>([]);
   // State lưu chỉ số ảnh đang chọn của lightbox (modal xem hình ảnh trung tâm)
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+  // State lưu ảnh review đang được xem trong lightbox
+  const [selectedReviewImage, setSelectedReviewImage] = useState<string | null>(null);
+  // State lưu center data (có thể update sau khi thêm review)
+  const [centerData, setCenterData] = useState<Center>(center);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Danh sách phân bố đánh giá (số lượng & tỷ lệ phần trăm theo mức sao), hiện cứng
-  const ratingDistribution = [
-    { stars: 5, count: 12, percentage: 77 },
-    { stars: 4, count: 25, percentage: 16 },
-    { stars: 3, count: 8, percentage: 5 },
-    { stars: 2, count: 2, percentage: 1 },
-    { stars: 1, count: 1, percentage: 1 },
-  ];
+  // Tính toán phân bố đánh giá từ reviews thực tế
+  const ratingDistribution = (() => {
+    const reviews = centerData.reviews || [];
+    const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    
+    reviews.forEach((review: any) => {
+      const rating = review.rating || 0;
+      if (rating >= 1 && rating <= 5) {
+        distribution[rating as keyof typeof distribution]++;
+      }
+    });
+
+    const total = reviews.length || 1;
+    return [5, 4, 3, 2, 1].map((stars) => ({
+      stars,
+      count: distribution[stars as keyof typeof distribution],
+      percentage: Math.round((distribution[stars as keyof typeof distribution] / total) * 100),
+    }));
+  })();
 
   // Hàm tối ưu hóa hình ảnh (resize + đổi định dạng JPG, nén trước khi upload)
   const optimizeImage = (file: File): Promise<File> => {
@@ -128,56 +148,85 @@ export default function ReviewClient({ center }: ReviewClientProps) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    // Chỉ cho phép tối đa 1 ảnh
-    const maxImages = 1;
-    if (reviewImages.length >= maxImages) {
+    // Cho phép tối đa 5 ảnh
+    const maxImages = 5;
+    const remainingSlots = maxImages - reviewImages.length;
+    
+    if (remainingSlots <= 0) {
       toast({
         title: 'Lỗi',
-        description: 'Bạn chỉ có thể tải tối đa 1 ảnh',
+        description: `Bạn chỉ có thể tải tối đa ${maxImages} ảnh`,
         variant: 'destructive',
       });
       return;
     }
 
-    const file = files[0];
-    if (!file) return;
+    // Xử lý từng file được chọn
+    const filesToProcess = Array.from(files).slice(0, remainingSlots);
+    const newImages: { file: File; preview: string }[] = [];
 
-    // Kiểm tra định dạng file là ảnh
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: 'Lỗi',
-        description: 'Vui lòng chọn file ảnh hợp lệ',
-        variant: 'destructive',
-      });
-      return;
-    }
-    // Kiểm tra dung lượng file không quá 10MB
-    if (file.size > 10 * 1024 * 1024) {
-      toast({
-        title: 'Lỗi',
-        description: 'Kích thước ảnh không được vượt quá 10MB',
-        variant: 'destructive',
-      });
-      return;
+    // Tính tổng kích thước ảnh hiện tại
+    const currentTotalSize = reviewImages.reduce((sum, img) => sum + img.file.size, 0);
+    const maxTotalSize = 10 * 1024 * 1024; // 10MB
+
+    for (const file of filesToProcess) {
+      // Kiểm tra định dạng file là ảnh
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: 'Lỗi',
+          description: `File "${file.name}" không phải là ảnh hợp lệ`,
+          variant: 'destructive',
+        });
+        continue;
+      }
+
+      // Kiểm tra dung lượng file không quá 10MB
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: 'Lỗi',
+          description: `Ảnh "${file.name}" vượt quá 10MB`,
+          variant: 'destructive',
+        });
+        continue;
+      }
+
+      // Kiểm tra tổng kích thước tất cả ảnh không quá 10MB
+      const newTotalSize = currentTotalSize + file.size;
+      if (newTotalSize > maxTotalSize) {
+        toast({
+          title: 'Lỗi',
+          description: `Tổng kích thước tất cả ảnh không được vượt quá 10MB. Hiện tại: ${(currentTotalSize / (1024 * 1024)).toFixed(2)}MB, thêm ảnh này sẽ là: ${(newTotalSize / (1024 * 1024)).toFixed(2)}MB`,
+          variant: 'destructive',
+        });
+        continue;
+      }
+
+      // Thử tối ưu image (resize+nén)
+      try {
+        const optimizedFile = await optimizeImage(file);
+        // Tạo preview cho ảnh đã tối ưu để hiển thị
+        const preview = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(optimizedFile);
+        });
+        newImages.push({ file: optimizedFile, preview });
+      } catch (error) {
+        toast({
+          title: 'Lỗi',
+          description: `Không thể tối ưu hóa ảnh "${file.name}". Vui lòng thử lại.`,
+          variant: 'destructive',
+        });
+      }
     }
 
-    // Thử tối ưu image (resize+nén)
-    try {
-      const optimizedFile = await optimizeImage(file);
-      // Tạo preview cho ảnh đã tối ưu để hiển thị
-      const preview = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(optimizedFile);
-      });
-      setReviewImages([{ file: optimizedFile, preview }]);
-    } catch (error) {
-      toast({
-        title: 'Lỗi',
-        description: 'Không thể tối ưu hóa ảnh. Vui lòng thử lại.',
-        variant: 'destructive',
-      });
+    // Thêm các ảnh mới vào danh sách
+    if (newImages.length > 0) {
+      setReviewImages([...reviewImages, ...newImages]);
     }
+
+    // Reset input để có thể chọn lại cùng file
+    e.target.value = '';
   };
 
   // Xử lý khi người dùng xóa ảnh upload khỏi đánh giá
@@ -189,12 +238,8 @@ export default function ReviewClient({ center }: ReviewClientProps) {
   useEffect(() => {
     if (selectedImageIndex === null) return;
 
-    // Lấy danh sách ảnh trung tâm để duyệt
-    const images = center.images && center.images.length > 0 
-      ? center.images 
-      : center.image 
-        ? [center.image] 
-        : [];
+    // Lấy danh sách ảnh trung tâm để duyệt (chỉ có 1 ảnh từ centerData.image)
+    const images = centerData.image ? [centerData.image] : [];
 
     // Xử lý phím bấm
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -218,11 +263,28 @@ export default function ReviewClient({ center }: ReviewClientProps) {
     window.addEventListener('keydown', handleKeyDown);
     // Dọn dẹp listener khi đóng modal/ component unmount
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedImageIndex, center.images, center.image]);
+  }, [selectedImageIndex, centerData.image]);
+
+  // useEffect cho phép điều khiển lightbox ảnh review bằng bàn phím (esc)
+  useEffect(() => {
+    if (!selectedReviewImage) return;
+
+    // Xử lý phím bấm
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedReviewImage(null); // Đóng modal khi bấm escape
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    // Dọn dẹp listener khi đóng modal/ component unmount
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedReviewImage]);
 
   // Xử lý khi user submit đánh giá mới
-  const handleSubmitReview = (e: React.FormEvent) => {
+  const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     // Kiểm tra nội dung bình luận tối thiểu 10 ký tự
     if (reviewText.trim().length < 10) {
       toast({
@@ -233,16 +295,59 @@ export default function ReviewClient({ center }: ReviewClientProps) {
       return;
     }
 
-    // Gửi review thành công (demo), có thể gửi API tại đây
-    toast({
-      title: 'Thành công!',
-      description: 'Đánh giá của bạn đã được gửi.',
-    });
+    try {
+      setSubmitting(true);
 
-    // Reset lại nội dung cho lần đánh giá mới
-    setReviewText('');
-    setSelectedRating(5);
-    setReviewImages([]);
+      // Kiểm tra tổng kích thước tất cả ảnh không quá 10MB
+      const totalSize = reviewImages.reduce((sum, img) => sum + img.file.size, 0);
+      const maxTotalSize = 10 * 1024 * 1024; // 10MB
+      
+      if (totalSize > maxTotalSize) {
+        toast({
+          title: 'Lỗi',
+          description: `Tổng kích thước tất cả ảnh không được vượt quá 10MB. Hiện tại: ${(totalSize / (1024 * 1024)).toFixed(2)}MB`,
+          variant: 'destructive',
+        });
+        setSubmitting(false);
+        return;
+      }
+
+      // Gửi file trực tiếp thay vì base64
+      const files: File[] = reviewImages.map((img) => img.file).filter((file) => file !== undefined) as File[];
+
+      // Gửi review lên server
+      const response = await centersAPI.addReview(centerData._id || centerData.id || '', {
+        rating: selectedRating,
+        comment: reviewText.trim(),
+        reviewerName: reviewerName.trim() || undefined,
+        images: files.length > 0 ? files : undefined,
+      });
+
+      if (response.success && response.data) {
+        // Cập nhật center data với reviews mới
+        setCenterData(response.data);
+
+        toast({
+          title: 'Thành công!',
+          description: 'Đánh giá của bạn đã được gửi.',
+        });
+
+        // Reset lại nội dung cho lần đánh giá mới
+        setReviewText('');
+        setReviewerName('');
+        setSelectedRating(5);
+        setReviewImages([]);
+      }
+    } catch (error: any) {
+      console.error('Error submitting review:', error);
+      toast({
+        title: 'Lỗi',
+        description: error.message || 'Không thể gửi đánh giá. Vui lòng thử lại.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Giao diện chính: header, thông tin trung tâm, danh sách đánh giá, form đánh giá, modal xem hình, footer
@@ -281,12 +386,12 @@ export default function ReviewClient({ center }: ReviewClientProps) {
             <CardHeader className="pb-4">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                 <div className="flex-1">
-                  <CardTitle className="text-3xl mb-2">{center.name}</CardTitle>
+                  <CardTitle className="text-3xl mb-2">{centerData.name}</CardTitle>
                   <div className="flex items-center gap-4 text-slate-600 mb-4">
                     <div className="flex items-center gap-1">
                       <Star className="w-5 h-5 fill-yellow-500 text-yellow-500" />
-                      <span className="font-semibold text-lg">{center.rating}</span>
-                      <span className="text-sm">({center.reviewCount} đánh giá)</span>
+                      <span className="font-semibold text-lg">{centerData.rating || 0}</span>
+                      <span className="text-sm">({centerData.reviewCount || 0} đánh giá)</span>
                     </div>
                   </div>
                 </div>
@@ -294,42 +399,24 @@ export default function ReviewClient({ center }: ReviewClientProps) {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Hiển thị hình ảnh trung tâm (nếu có) */}
-              {(center.image || (center.images && center.images.length > 0)) && (
+              {centerData.image && (
                 <div className="mb-6">
                   <h3 className="text-lg font-semibold text-slate-900 mb-4">Hình ảnh trung tâm</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {center.images && center.images.length > 0 ? (
-                      center.images.map((img: string, index: number) => (
-                        <div
-                          key={index}
-                          className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity group"
-                          onClick={() => setSelectedImageIndex(index)}
-                        >
-                          <Image
-                            src={img}
-                            alt={`${center.name} - Hình ${index + 1}`}
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                          />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
-                        </div>
-                      ))
-                    ) : center.image ? (
-                      <div
-                        className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity group"
-                        onClick={() => setSelectedImageIndex(0)}
-                      >
-                        <Image
-                          src={center.image}
-                          alt={center.name}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
-                      </div>
-                    ) : null}
+                    <div
+                      className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity group"
+                      onClick={() => setSelectedImageIndex(0)}
+                    >
+                      <Image
+                        src={centerData.image}
+                        alt={centerData.name}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        unoptimized
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -337,29 +424,31 @@ export default function ReviewClient({ center }: ReviewClientProps) {
               {/* Thông tin liên hệ của trung tâm */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <MapPin className="w-5 h-5 text-slate-400" />
-                    <span>{center.address}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <Phone className="w-5 h-5 text-slate-400" />
-                    <span>{center.phone}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <Mail className="w-5 h-5 text-slate-400" />
-                    <span>{center.email}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <Globe className="w-5 h-5 text-slate-400" />
-                    <a
-                      href={center.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
-                    >
-                      {center.website}
-                    </a>
-                  </div>
+                  {centerData.address && (
+                    <div className="flex items-center gap-3 text-slate-700">
+                      <MapPin className="w-5 h-5 text-slate-400" />
+                      <span>{centerData.address}</span>
+                    </div>
+                  )}
+                  {centerData.phone && (
+                    <div className="flex items-center gap-3 text-slate-700">
+                      <Phone className="w-5 h-5 text-slate-400" />
+                      <span>{centerData.phone}</span>
+                    </div>
+                  )}
+                  {centerData.website && (
+                    <div className="flex items-center gap-3 text-slate-700">
+                      <Globe className="w-5 h-5 text-slate-400" />
+                      <a
+                        href={centerData.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        {centerData.website}
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -375,64 +464,76 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {center.reviews.map((review: any) => (
-                      <div key={review.id} className="pb-6 border-b last:border-b-0 last:pb-0">
-                        <div className="flex items-start gap-4">
-                          {/* Ảnh avatar (chữ cái đầu tên người đánh giá), tự động lấy ký tự đầu */}
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 text-white font-semibold flex items-center justify-center text-lg shrink-0">
-                            {review.author.charAt(0)}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between mb-2">
-                              <div>
-                                <p className="font-semibold text-slate-900">{review.author}</p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <div className="flex">
-                                    {/* Hiển thị số sao (tô màu nếu được chọn) */}
-                                    {[...Array(5)].map((_, i) => (
-                                      <Star
-                                        key={i}
-                                        className={`w-4 h-4 ${
-                                          i < review.rating
-                                            ? 'fill-yellow-500 text-yellow-500'
-                                            : 'text-slate-300'
-                                        }`}
-                                      />
-                                    ))}
+                    {centerData.reviews && centerData.reviews.length > 0 ? (
+                      centerData.reviews.map((review: any, index: number) => (
+                        <div key={review._id || review.id || index} className="pb-6 border-b last:border-b-0 last:pb-0">
+                          <div className="flex items-start gap-4">
+                            {/* Ảnh avatar (chữ cái đầu) */}
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 text-white font-semibold flex items-center justify-center text-lg shrink-0">
+                              {(review.reviewerName || review.comment || 'U').charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-2">
+                                <div>
+                                  <p className="font-semibold text-slate-900">
+                                    {review.reviewerName || 'Người dùng'}
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <div className="flex">
+                                      {/* Hiển thị số sao */}
+                                      {[...Array(5)].map((_, i) => (
+                                        <Star
+                                          key={i}
+                                          className={`w-4 h-4 ${
+                                            i < (review.rating || 0)
+                                              ? 'fill-yellow-500 text-yellow-500'
+                                              : 'text-slate-300'
+                                          }`}
+                                        />
+                                      ))}
+                                    </div>
+                                    {review.createdAt && (
+                                      <span className="text-sm text-slate-500">
+                                        <Calendar className="w-3 h-3 inline mr-1" />
+                                        {new Date(review.createdAt).toLocaleDateString('vi-VN')}
+                                      </span>
+                                    )}
                                   </div>
-                                  <span className="text-sm text-slate-500">
-                                    <Calendar className="w-3 h-3 inline mr-1" />
-                                    {new Date(review.date).toLocaleDateString('vi-VN')}
-                                  </span>
                                 </div>
                               </div>
+                              {review.comment && (
+                                <p className="text-slate-700 leading-relaxed mb-3">{review.comment}</p>
+                              )}
+                              {(review.images && review.images.length > 0) || review.image ? (
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                  {/* Hiển thị images array nếu có, nếu không thì dùng image (backward compatibility) */}
+                                  {((review.images && review.images.length > 0) ? review.images : [review.image]).map((img: string, imgIndex: number) => (
+                                    img && (
+                                      <div 
+                                        key={imgIndex}
+                                        className="relative w-24 h-24 rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity"
+                                        onClick={() => setSelectedReviewImage(img)}
+                                      >
+                                        <Image
+                                          src={img}
+                                          alt={`Review image ${imgIndex + 1}`}
+                                          fill
+                                          className="object-cover"
+                                          sizes="96px"
+                                          unoptimized
+                                        />
+                                      </div>
+                                    )
+                                  ))}
+                                </div>
+                              ) : null}
                             </div>
-                            <p className="text-slate-700 leading-relaxed mb-3">{review.comment}</p>
-                            {review.images && review.images.length > 0 && (
-                              <div className="flex flex-wrap gap-2 mb-3">
-                                {review.images.map((img: string, idx: number) => (
-                                  <div key={idx} className="relative w-24 h-24 rounded-lg overflow-hidden border border-slate-200">
-                                    {/* Hiển thị ảnh đánh giá */}
-                                    <Image
-                                      src={img}
-                                      alt={`Review image ${idx + 1}`}
-                                      fill
-                                      className="object-cover"
-                                      sizes="96px"
-                                    />
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {/* Nút hữu ích */}
-                            <Button variant="ghost" size="sm" className="text-slate-600 hover:text-blue-600">
-                              <Heart className="w-4 h-4 mr-1" />
-                              Hữu ích ({review.helpful})
-                            </Button>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                    ) : (
+                      <p className="text-slate-500 text-center py-8">Chưa có đánh giá nào</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -447,21 +548,21 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                 </CardHeader>
                 <CardContent>
                   <div className="text-center mb-6">
-                    <div className="text-5xl font-bold text-slate-900 mb-2">{center.rating}</div>
+                    <div className="text-5xl font-bold text-slate-900 mb-2">{centerData.rating || 0}</div>
                     <div className="flex justify-center mb-2">
-                      {/* Sao trung bình dựa trên center.rating (tô màu sao thỏa) */}
+                      {/* Sao trung bình */}
                       {[...Array(5)].map((_, i) => (
                         <Star
                           key={i}
                           className={`w-5 h-5 ${
-                            i < Math.floor(center.rating)
+                            i < Math.floor(centerData.rating || 0)
                               ? 'fill-yellow-500 text-yellow-500'
                               : 'text-slate-300'
                           }`}
                         />
                       ))}
                     </div>
-                    <p className="text-slate-600">{center.reviewCount} đánh giá</p>
+                    <p className="text-slate-600">{centerData.reviewCount || 0} đánh giá</p>
                   </div>
 
                   {/* Biểu đồ phân bố số sao (hiện số mẫu, phần trăm) */}
@@ -493,6 +594,19 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={handleSubmitReview} className="space-y-4">
+                    {/* Ô nhập tên người đánh giá */}
+                    <div className="space-y-2">
+                      <Label htmlFor="reviewerName">Tên của bạn</Label>
+                      <Input
+                        id="reviewerName"
+                        type="text"
+                        placeholder="Nhập tên của bạn (tùy chọn)"
+                        value={reviewerName}
+                        onChange={(e) => setReviewerName(e.target.value)}
+                        className="text-base"
+                      />
+                    </div>
+
                     {/* Chọn số sao */}
                     <div className="space-y-2">
                       <Label>Đánh giá của bạn</Label>
@@ -532,35 +646,53 @@ export default function ReviewClient({ center }: ReviewClientProps) {
 
                     {/* Ảnh đánh giá (có thể up lên hoặc xóa) */}
                     <div className="space-y-2">
-                      <Label htmlFor="review-images">Hình ảnh</Label>
-                      {reviewImages.length > 0 ? (
-                        <div className="relative w-full h-48 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center">
-                          <Image
-                            src={reviewImages[0].preview}
-                            alt="Preview"
-                            fill
-                            className="object-contain"
-                            sizes="(max-width: 768px) 100vw, 50vw"
-                            unoptimized
-                          />
-                          {/* Nút xóa ảnh */}
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleRemoveImage(0)}
-                            className="absolute top-2 right-2"
-                          >
-                            <X className="w-4 h-4 mr-1" />
-                            Xóa
-                          </Button>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="review-images">
+                          Hình ảnh {reviewImages.length > 0 && `(${reviewImages.length}/5)`}
+                        </Label>
+                        {reviewImages.length > 0 && (
+                          <span className={`text-xs ${
+                            reviewImages.reduce((sum, img) => sum + img.file.size, 0) > 10 * 1024 * 1024
+                              ? 'text-red-500 font-semibold'
+                              : 'text-slate-500'
+                          }`}>
+                            {(reviewImages.reduce((sum, img) => sum + img.file.size, 0) / (1024 * 1024)).toFixed(2)}MB / 10MB
+                          </span>
+                        )}
+                      </div>
+                      {reviewImages.length > 0 && (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
+                          {reviewImages.map((img, index) => (
+                            <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+                              <Image
+                                src={img.preview}
+                                alt={`Preview ${index + 1}`}
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 768px) 50vw, 33vw"
+                                unoptimized
+                              />
+                              {/* Nút xóa ảnh */}
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleRemoveImage(index)}
+                                className="absolute top-1 right-1 h-6 w-6 p-0"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
                         </div>
-                      ) : (
+                      )}
+                      {reviewImages.length < 5 && (
                         <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-blue-500 transition-colors">
                           <input
                             type="file"
                             id="review-images"
                             accept="image/*"
+                            multiple
                             onChange={handleImageChange}
                             className="hidden"
                           />
@@ -570,17 +702,17 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                           >
                             <Upload className="w-5 h-5 text-slate-600" />
                             <span className="text-sm text-blue-600 font-medium">
-                              Thêm ảnh
+                              Thêm ảnh {reviewImages.length > 0 && `(${5 - reviewImages.length} ảnh còn lại)`}
                             </span>
-                            <p className="text-xs text-slate-500">PNG, JPG, GIF tối đa 10MB</p>
+                            <p className="text-xs text-slate-500">PNG, JPG, GIF tối đa 10MB mỗi ảnh (tối đa 5 ảnh)</p>
                           </label>
                         </div>
                       )}
                     </div>
 
                     {/* Nút gửi đánh giá */}
-                    <Button type="submit" className="w-full">
-                      Gửi Đánh Giá
+                    <Button type="submit" className="w-full" disabled={submitting}>
+                      {submitting ? 'Đang gửi...' : 'Gửi Đánh Giá'}
                     </Button>
                   </form>
                 </CardContent>
@@ -606,15 +738,11 @@ export default function ReviewClient({ center }: ReviewClientProps) {
           <div className="relative max-w-7xl max-h-full w-full h-full flex items-center justify-center">
             {(() => {
               // Lấy danh sách hình ảnh dùng cho lightbox
-              const images = center.images && center.images.length > 0 
-                ? center.images 
-                : center.image 
-                  ? [center.image] 
-                  : [];
+              const images = centerData.image ? [centerData.image] : [];
               
               if (images.length === 0) return null;
               
-              const currentImage = images[selectedImageIndex];
+              const currentImage = images[selectedImageIndex || 0];
               
               return (
                 <>
@@ -661,11 +789,12 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                   >
                     <Image
                       src={currentImage}
-                      alt={`${center.name} - Hình ${selectedImageIndex + 1}`}
+                      alt={`${centerData.name} - Hình ${(selectedImageIndex || 0) + 1}`}
                       fill
                       className="object-contain"
                       sizes="100vw"
                       priority
+                      unoptimized
                     />
                   </div>
                   
@@ -692,6 +821,45 @@ export default function ReviewClient({ center }: ReviewClientProps) {
               );
             })()}
             
+          </div>
+        </div>
+      )}
+
+      {/* Modal xem hình ảnh review (lightbox hiển thị lớn) */}
+      {selectedReviewImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setSelectedReviewImage(null)}
+        >
+          <div className="relative max-w-7xl max-h-full w-full h-full flex items-center justify-center">
+            {/* Hình ảnh review full */}
+            <div 
+              className="relative w-full h-full flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Image
+                src={selectedReviewImage}
+                alt="Review image"
+                fill
+                className="object-contain"
+                sizes="100vw"
+                priority
+                unoptimized
+              />
+            </div>
+            
+            {/* Nút đóng modal */}
+            <Button
+              variant="outline"
+              size="icon"
+              className="absolute top-4 right-4 z-10 bg-white/10 hover:bg-white/20 text-white border-white/20"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedReviewImage(null);
+              }}
+            >
+              <X className="w-6 h-6" />
+            </Button>
           </div>
         </div>
       )}
