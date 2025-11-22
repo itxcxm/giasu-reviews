@@ -49,8 +49,21 @@ app.use(
     credentials: true, // Cho phép gửi cookie qua CORS
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    exposedHeaders: ["Set-Cookie"], // Expose Set-Cookie header để client biết cookies được set
   })
 );
+
+// Middleware để log CORS và cookie info (chỉ trong development hoặc khi DEBUG=true)
+if (process.env.NODE_ENV === "development" || process.env.DEBUG === "true") {
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      console.log(`[${req.method}] ${req.path}`);
+      console.log("Origin:", req.headers.origin);
+      console.log("Cookies:", req.cookies);
+    }
+    next();
+  });
+}
 
 // Thiết lập middleware xử lý cookie và các dữ liệu body
 app.use(cookieParser());

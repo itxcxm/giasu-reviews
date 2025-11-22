@@ -26,10 +26,16 @@ export const getCookieOptions = () => {
   const isCrossDomain =
     process.env.CLIENT_URL && process.env.CLIENT_URL.includes("https://");
 
+  // Khi sameSite: "none", BẮT BUỘC phải có secure: true
+  const sameSiteValue = isProduction && isCrossDomain ? "none" : "lax";
+  const secureValue = isProduction || sameSiteValue === "none"; // Secure bắt buộc khi sameSite: "none"
+
   return {
     httpOnly: true,
-    secure: isProduction, // Secure chỉ hoạt động với HTTPS
-    sameSite: isProduction && isCrossDomain ? "none" : "lax", // "none" cho cross-domain, "lax" cho same-site
-    // Không set domain để cookie hoạt động với mọi subdomain
+    secure: secureValue, // Secure bắt buộc khi sameSite: "none" hoặc production
+    sameSite: sameSiteValue, // "none" cho cross-domain, "lax" cho same-site
+    path: "/", // Cookie hoạt động trên tất cả paths
+    // Không set domain để cookie hoạt động với domain hiện tại
+    // Domain sẽ tự động được set bởi browser dựa trên domain của response
   };
 };

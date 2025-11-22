@@ -8,6 +8,10 @@ Khi deploy lên Vercel, bạn có thể gặp lỗi `{success: false, message: "
 
 ### 1. Cấu Hình Environment Variables Trên Vercel
 
+⚠️ **QUAN TRỌNG NHẤT**: Đây là nguyên nhân chính gây lỗi "Token không được cung cấp"!
+
+Nếu không set `NEXT_PUBLIC_API_URL`, frontend sẽ cố gọi API trên chính domain Vercel (ví dụ: `https://giasu-reviews.vercel.app/api/admin/check-auth`) thay vì backend server của bạn, dẫn đến lỗi 401.
+
 Vào **Settings > Environment Variables** trong Vercel dashboard và thêm:
 
 #### Front-end (Vercel):
@@ -15,6 +19,14 @@ Vào **Settings > Environment Variables** trong Vercel dashboard và thêm:
 ```
 NEXT_PUBLIC_API_URL=https://your-backend-domain.com
 ```
+
+**Lưu ý quan trọng:**
+
+- ✅ URL phải bao gồm protocol (`https://`)
+- ✅ Không có dấu `/` ở cuối
+- ✅ Ví dụ đúng: `https://api.yourdomain.com` hoặc `https://your-backend.herokuapp.com`
+- ❌ Ví dụ sai: `api.yourdomain.com` (thiếu protocol) hoặc `https://api.yourdomain.com/` (có dấu / ở cuối)
+- 🔄 **Sau khi thêm, PHẢI REDEPLOY** để áp dụng thay đổi (Vercel không tự động redeploy khi thêm env vars)
 
 #### Back-end (nơi bạn deploy backend):
 
@@ -43,7 +55,17 @@ Backend đã được cấu hình để:
 
 ### 3. Kiểm Tra API URL
 
-Đảm bảo `NEXT_PUBLIC_API_URL` trong Vercel trỏ đúng đến backend server của bạn.
+**Cách kiểm tra:**
+
+1. Mở DevTools > Console trong browser
+2. Gõ: `console.log('API URL:', process.env.NEXT_PUBLIC_API_URL)` (sẽ không hoạt động vì env vars không accessible từ client)
+3. Thay vào đó, mở DevTools > Network tab
+4. Tìm request đến `/api/admin/check-auth`
+5. Xem **Request URL** - nó phải trỏ đến backend server của bạn, KHÔNG phải domain Vercel
+
+**Nếu Request URL là `https://giasu-reviews.vercel.app/api/...`** → `NEXT_PUBLIC_API_URL` chưa được set hoặc chưa redeploy
+
+**Nếu Request URL là `https://your-backend.com/api/...`** → Đã cấu hình đúng ✅
 
 ### 4. Test Sau Khi Deploy
 
@@ -56,23 +78,41 @@ Backend đã được cấu hình để:
 
 #### Nếu vẫn gặp lỗi "Token không được cung cấp":
 
-1. **Kiểm tra CORS:**
+**Bước 1: Kiểm tra NEXT_PUBLIC_API_URL (QUAN TRỌNG NHẤT)**
 
-   - Xem console log của backend để xem origin nào bị block
-   - Đảm bảo Vercel URL được thêm vào `CLIENT_URL`
+1. Vào Vercel Dashboard > Project > Settings > Environment Variables
+2. Kiểm tra xem `NEXT_PUBLIC_API_URL` có được set không
+3. Nếu có, kiểm tra giá trị có đúng không (phải là URL backend, không phải Vercel URL)
+4. **Redeploy** sau khi thêm/sửa env vars (Vercel không tự động redeploy)
 
-2. **Kiểm tra Cookies:**
+**Bước 2: Kiểm tra Request URL trong Network Tab**
 
-   - Cookies chỉ hoạt động với HTTPS trong production
-   - Đảm bảo cả front-end và back-end đều dùng HTTPS
+1. Mở DevTools > Network
+2. Tìm request `check-auth`
+3. Xem Request URL:
+   - ❌ Nếu là `https://giasu-reviews.vercel.app/api/...` → `NEXT_PUBLIC_API_URL` chưa được set
+   - ✅ Nếu là `https://your-backend.com/api/...` → Đã đúng, kiểm tra bước tiếp theo
 
-3. **Kiểm tra Network:**
+**Bước 3: Kiểm tra CORS**
 
-   - Xem request có gửi `credentials: include` không
-   - Xem response có set cookies không
+- Xem console log của backend để xem origin nào bị block
+- Đảm bảo Vercel URL được thêm vào `CLIENT_URL` trong backend env vars
 
-4. **Test với Postman/Thunder Client:**
-   - Thử gọi API trực tiếp để xem backend có hoạt động không
+**Bước 4: Kiểm tra Cookies**
+
+- Cookies chỉ hoạt động với HTTPS trong production
+- Đảm bảo cả front-end và back-end đều dùng HTTPS
+- Xem Application > Cookies trong DevTools để xem cookies có được set không
+
+**Bước 5: Kiểm tra Network Headers**
+
+- Xem request có gửi `credentials: include` không (trong Request Headers)
+- Xem response có set cookies không (trong Response Headers, tìm `Set-Cookie`)
+
+**Bước 6: Test với Postman/Thunder Client**
+
+- Thử gọi API trực tiếp để xem backend có hoạt động không
+- Test endpoint: `GET https://your-backend.com/api/admin/check-auth` với cookies
 
 ### 6. Cấu Hình Cho Preview Deployments
 
