@@ -21,9 +21,15 @@ export const JWT_CONFIG = {
 
 // Cookie Options
 export const getCookieOptions = () => {
+  // Trong production, nếu front-end và back-end ở domain khác nhau, cần sameSite: "none" và secure: true
+  const isProduction = process.env.NODE_ENV === "production";
+  const isCrossDomain =
+    process.env.CLIENT_URL && process.env.CLIENT_URL.includes("https://");
+
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    secure: isProduction, // Secure chỉ hoạt động với HTTPS
+    sameSite: isProduction && isCrossDomain ? "none" : "lax", // "none" cho cross-domain, "lax" cho same-site
+    // Không set domain để cookie hoạt động với mọi subdomain
   };
 };

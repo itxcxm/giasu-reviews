@@ -15,28 +15,40 @@ app.set("trust proxy", 1);
 
 // Cấu hình các nguồn cho phép truy cập CORS
 const allowedOrigins = process.env.CLIENT_URL
-  ? process.env.CLIENT_URL.split(",")
+  ? process.env.CLIENT_URL.split(",").map((url) => url.trim())
   : ["http://localhost:3000", "http://localhost:5173"];
 
 // Thiết lập middleware CORS (Cross-Origin Resource Sharing)
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Chấp nhận request không có origin (ví dụ: app mobile, POSTMAN, CURL)
+      // Chấp nhận request không có origin (ví dụ: app mobile, POSTMAN, CURL, server-side requests)
       if (!origin) return callback(null, true);
 
+      // Kiểm tra nếu origin khớp với bất kỳ allowed origin nào
+      const isAllowed = allowedOrigins.some((allowedOrigin) => {
+        // Hỗ trợ wildcard hoặc exact match
+        if (allowedOrigin.includes("*")) {
+          const pattern = allowedOrigin.replace("*", ".*");
+          return new RegExp(`^${pattern}$`).test(origin);
+        }
+        return origin === allowedOrigin || origin.startsWith(allowedOrigin);
+      });
+
       // Nếu nguồn nằm trong danh sách cho phép hoặc đang ở môi trường development
-      if (
-        allowedOrigins.indexOf(origin) !== -1 ||
-        process.env.NODE_ENV === "development"
-      ) {
+      if (isAllowed || process.env.NODE_ENV === "development") {
         callback(null, true);
       } else {
+        // Log để debug
+        console.log("CORS blocked origin:", origin);
+        console.log("Allowed origins:", allowedOrigins);
         // Nếu nguồn không hợp lệ, trả về lỗi
-        callback(new Error("Not allowed by CORS"));
+        callback(new Error(`Not allowed by CORS: ${origin}`));
       }
     },
     credentials: true, // Cho phép gửi cookie qua CORS
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   })
 );
 
