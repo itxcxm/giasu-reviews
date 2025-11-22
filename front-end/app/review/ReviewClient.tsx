@@ -401,21 +401,34 @@ export default function ReviewClient({ center }: ReviewClientProps) {
               {/* Hiển thị hình ảnh trung tâm (nếu có) */}
               {centerData.image && (
                 <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-slate-900 mb-4">Hình ảnh trung tâm</h3>
+                  <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                    <div className="w-1 h-6 bg-gradient-to-b from-blue-600 to-cyan-600 rounded-full"></div>
+                    Hình ảnh trung tâm
+                  </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div
-                      className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity group"
+                      className="relative aspect-video rounded-xl overflow-hidden border-2 border-slate-200 cursor-pointer group shadow-md hover:shadow-xl transition-all duration-300 hover:scale-[1.02]"
                       onClick={() => setSelectedImageIndex(0)}
                     >
                       <Image
                         src={centerData.image}
                         alt={centerData.name}
                         fill
-                        className="object-cover"
+                        className="object-cover transition-transform duration-300 group-hover:scale-110"
                         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                         unoptimized
                       />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <div className="bg-white/90 backdrop-blur-sm rounded-full p-3 shadow-lg transform group-hover:scale-110 transition-transform">
+                          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <p className="text-white text-sm font-medium">Nhấn để xem lớn</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -505,23 +518,31 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                                 <p className="text-slate-700 leading-relaxed mb-3">{review.comment}</p>
                               )}
                               {(review.images && review.images.length > 0) || review.image ? (
-                                <div className="flex flex-wrap gap-2 mb-3">
+                                <div className="flex flex-wrap gap-3 mb-3">
                                   {/* Hiển thị images array nếu có, nếu không thì dùng image (backward compatibility) */}
                                   {((review.images && review.images.length > 0) ? review.images : [review.image]).map((img: string, imgIndex: number) => (
                                     img && (
                                       <div 
                                         key={imgIndex}
-                                        className="relative w-24 h-24 rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity"
+                                        className="relative w-28 h-28 rounded-xl overflow-hidden border-2 border-slate-200 cursor-pointer group shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105"
                                         onClick={() => setSelectedReviewImage(img)}
                                       >
                                         <Image
                                           src={img}
                                           alt={`Review image ${imgIndex + 1}`}
                                           fill
-                                          className="object-cover"
-                                          sizes="96px"
+                                          className="object-cover transition-transform duration-300 group-hover:scale-110"
+                                          sizes="112px"
                                           unoptimized
                                         />
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300"></div>
+                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                          <div className="bg-white/90 backdrop-blur-sm rounded-full p-2 shadow-lg">
+                                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+                                            </svg>
+                                          </div>
+                                        </div>
                                       </div>
                                     )
                                   ))}
@@ -663,7 +684,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                       {reviewImages.length > 0 && (
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
                           {reviewImages.map((img, index) => (
-                            <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+                            <div key={index} className="relative aspect-square rounded-xl overflow-hidden border-2 border-slate-200 bg-slate-100 shadow-md hover:shadow-lg transition-all duration-300 group">
                               <Image
                                 src={img.preview}
                                 alt={`Preview ${index + 1}`}
@@ -672,22 +693,28 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                                 sizes="(max-width: 768px) 50vw, 33vw"
                                 unoptimized
                               />
+                              {/* Overlay khi hover */}
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-300"></div>
                               {/* Nút xóa ảnh */}
                               <Button
                                 type="button"
                                 variant="destructive"
                                 size="sm"
                                 onClick={() => handleRemoveImage(index)}
-                                className="absolute top-1 right-1 h-6 w-6 p-0"
+                                className="absolute top-2 right-2 h-7 w-7 p-0 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:scale-110"
                               >
                                 <X className="w-4 h-4" />
                               </Button>
+                              {/* Badge số thứ tự */}
+                              <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs font-semibold px-2 py-1 rounded-full shadow-md">
+                                {index + 1}
+                              </div>
                             </div>
                           ))}
                         </div>
                       )}
                       {reviewImages.length < 5 && (
-                        <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-blue-500 transition-colors">
+                        <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-blue-500 hover:bg-blue-50/50 transition-all duration-300 group cursor-pointer">
                           <input
                             type="file"
                             id="review-images"
@@ -698,13 +725,17 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                           />
                           <label
                             htmlFor="review-images"
-                            className="cursor-pointer flex flex-col items-center gap-2"
+                            className="cursor-pointer flex flex-col items-center gap-3"
                           >
-                            <Upload className="w-5 h-5 text-slate-600" />
-                            <span className="text-sm text-blue-600 font-medium">
-                              Thêm ảnh {reviewImages.length > 0 && `(${5 - reviewImages.length} ảnh còn lại)`}
-                            </span>
-                            <p className="text-xs text-slate-500">PNG, JPG, GIF tối đa 10MB mỗi ảnh (tối đa 5 ảnh)</p>
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                              <Upload className="w-6 h-6 text-white" />
+                            </div>
+                            <div>
+                              <span className="text-sm font-semibold text-blue-600 group-hover:text-blue-700 transition-colors">
+                                Thêm ảnh {reviewImages.length > 0 && `(${5 - reviewImages.length} ảnh còn lại)`}
+                              </span>
+                              <p className="text-xs text-slate-500 mt-1">PNG, JPG, GIF tối đa 10MB mỗi ảnh (tối đa 5 ảnh)</p>
+                            </div>
                           </label>
                         </div>
                       )}
@@ -732,7 +763,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
       {/* Modal xem hình ảnh trung tâm (lightbox hiển thị lớn - chuyển ảnh, thoát esc) */}
       {selectedImageIndex !== null && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300"
           onClick={() => setSelectedImageIndex(null)}
         >
           <div className="relative max-w-7xl max-h-full w-full h-full flex items-center justify-center">
@@ -752,7 +783,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                       <Button
                         variant="outline"
                         size="icon"
-                        className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-white/10 hover:bg-white/20 text-white border-white/20"
+                        className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white border-white/30 shadow-xl hover:scale-110 transition-all duration-300"
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedImageIndex(
@@ -767,7 +798,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                       <Button
                         variant="outline"
                         size="icon"
-                        className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-white/10 hover:bg-white/20 text-white border-white/20"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white border-white/30 shadow-xl hover:scale-110 transition-all duration-300"
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedImageIndex(
@@ -802,7 +833,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                   <Button
                     variant="outline"
                     size="icon"
-                    className="absolute top-4 right-4 z-10 bg-white/10 hover:bg-white/20 text-white border-white/20"
+                    className="absolute top-4 right-4 z-10 bg-white/20 hover:bg-red-500/80 backdrop-blur-md text-white border-white/30 shadow-xl hover:scale-110 transition-all duration-300"
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedImageIndex(null);
@@ -813,7 +844,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                   
                   {/* Hiển thị số/thứ tự ảnh nếu có nhiều ảnh */}
                   {images.length > 1 && (
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full text-white text-sm">
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-white/20 backdrop-blur-md px-4 py-2 rounded-full text-white text-sm font-semibold shadow-xl border border-white/30">
                       {selectedImageIndex + 1} / {images.length}
                     </div>
                   )}
@@ -828,7 +859,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
       {/* Modal xem hình ảnh review (lightbox hiển thị lớn) */}
       {selectedReviewImage && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300"
           onClick={() => setSelectedReviewImage(null)}
         >
           <div className="relative max-w-7xl max-h-full w-full h-full flex items-center justify-center">
@@ -852,7 +883,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
             <Button
               variant="outline"
               size="icon"
-              className="absolute top-4 right-4 z-10 bg-white/10 hover:bg-white/20 text-white border-white/20"
+              className="absolute top-4 right-4 z-10 bg-white/20 hover:bg-red-500/80 backdrop-blur-md text-white border-white/30 shadow-xl hover:scale-110 transition-all duration-300"
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedReviewImage(null);

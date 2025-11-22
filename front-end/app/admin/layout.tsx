@@ -1,10 +1,6 @@
-import './globals.css';
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import { Navbar } from '@/components/navbar';
 import { AdminGuard } from '@/components/AdminGuard';
-
-const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Gia sư Reviews - Admin',
@@ -17,13 +13,9 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi">
-      <body className={inter.className}>
-        <AdminGuard>
-          <Navbar />
-          {children}
-        </AdminGuard>
-      </body>
-    </html>
+    <AdminGuard>
+      <Navbar />
+      {children}
+    </AdminGuard>
   );
 }

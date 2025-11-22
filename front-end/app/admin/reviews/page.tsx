@@ -31,7 +31,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Trash2, Search, ChevronLeft, ChevronRight, Star, Upload, X, Eye } from 'lucide-react';
+import { Plus, Trash2, Search, ChevronLeft, ChevronRight, Star, Upload, X, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
@@ -58,6 +58,7 @@ export default function AdminReviewsPage() {
   
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [reviewImages, setReviewImages] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     centerName: '',
     studentName: '',
@@ -135,7 +136,12 @@ export default function AdminReviewsPage() {
         image: review.image || '',
         status: review.status || 'approved',
       });
-      setImagePreview(review.image || null);
+      // Lấy danh sách hình ảnh từ review (ưu tiên images array, fallback về image)
+      const images = (review.images && review.images.length > 0) 
+        ? review.images 
+        : (review.image ? [review.image] : []);
+      setReviewImages(images);
+      setImagePreview(review.image || (images.length > 0 ? images[0] : null));
       setImageFile(null);
     } else {
       setEditingReview(null);
@@ -149,6 +155,7 @@ export default function AdminReviewsPage() {
       });
       setImagePreview(null);
       setImageFile(null);
+      setReviewImages([]);
     }
     setIsDialogOpen(true);
   };
@@ -158,6 +165,7 @@ export default function AdminReviewsPage() {
     setEditingReview(null);
     setImagePreview(null);
     setImageFile(null);
+    setReviewImages([]);
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -439,7 +447,7 @@ export default function AdminReviewsPage() {
                           size="sm"
                           onClick={() => handleOpenDialog(review)}
                         >
-                          <Eye className="h-4 w-4" />
+                          <FileText className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="destructive"
@@ -573,40 +581,66 @@ export default function AdminReviewsPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="image">Hình ảnh</Label>
-              {imagePreview ? (
-                <div className="relative w-full h-48 border rounded-lg overflow-hidden">
-                  <Image
-                    src={imagePreview}
-                    alt="Preview"
-                    fill
-                    className="object-cover"
-                    unoptimized
-                  />
-                  {!editingReview && (
+              <Label htmlFor="image">Hình ảnh {reviewImages.length > 0 && `(${reviewImages.length})`}</Label>
+              {editingReview ? (
+                // Hiển thị hình ảnh từ URL khi xem review
+                reviewImages.length > 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {reviewImages.map((imgUrl, index) => (
+                      <div
+                        key={index}
+                        className="relative aspect-square rounded-xl overflow-hidden border-2 border-slate-200 shadow-md"
+                      >
+                        <Image
+                          src={imgUrl}
+                          alt={`Review image ${index + 1}`}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 50vw, 33vw"
+                          unoptimized
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground py-4 text-center border rounded-lg">
+                    Không có hình ảnh
+                  </div>
+                )
+              ) : (
+                // Upload area khi tạo mới
+                imagePreview ? (
+                  <div className="relative w-full h-48 border-2 border-slate-200 rounded-xl overflow-hidden shadow-md">
+                    <Image
+                      src={imagePreview}
+                      alt="Preview"
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
                     <Button
                       type="button"
                       variant="destructive"
                       size="sm"
-                      className="absolute top-2 right-2"
+                      className="absolute top-2 right-2 shadow-lg"
                       onClick={handleRemoveImage}
                     >
                       <X className="h-4 w-4" />
                     </Button>
-                  )}
-                </div>
-              ) : (
-                !editingReview && (
-                  <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 hover:border-blue-500 hover:bg-blue-50/50 transition-all duration-300">
                     <label
                       htmlFor="image-upload"
-                      className="flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 rounded-lg p-4 transition-colors"
+                      className="flex flex-col items-center justify-center cursor-pointer"
                     >
-                      <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                      <span className="text-sm text-muted-foreground">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mb-3 shadow-lg">
+                        <Upload className="h-6 w-6 text-white" />
+                      </div>
+                      <span className="text-sm font-medium text-blue-600">
                         Click để tải lên hình ảnh
                       </span>
-                      <span className="text-xs text-muted-foreground mt-1">
+                      <span className="text-xs text-slate-500 mt-1">
                         PNG, JPG, WEBP (tối đa 5MB)
                       </span>
                     </label>
@@ -619,11 +653,6 @@ export default function AdminReviewsPage() {
                     />
                   </div>
                 )
-              )}
-              {editingReview && !imagePreview && (
-                <div className="text-sm text-muted-foreground py-4 text-center">
-                  Không có hình ảnh
-                </div>
               )}
             </div>
           </form>
@@ -654,6 +683,7 @@ export default function AdminReviewsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
     </div>
   );
 }
