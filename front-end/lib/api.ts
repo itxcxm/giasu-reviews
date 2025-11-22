@@ -23,7 +23,13 @@ const getApiBaseUrl = () => {
   // Fallback cho client-side (chỉ dùng trong development)
   // Trong production, NEXT_PUBLIC_API_URL phải được set
   if (process.env.NODE_ENV === 'production') {
-    console.error('NEXT_PUBLIC_API_URL is not set in production! Please configure it in Vercel environment variables.');
+    const errorMsg = '❌ NEXT_PUBLIC_API_URL is not set in production! This will cause API calls to fail. Please configure it in Vercel environment variables.';
+    console.error(errorMsg);
+    // Trong production, nếu không có API URL, throw error để dễ debug
+    if (typeof window !== 'undefined') {
+      console.error('Current window location:', window.location.href);
+      console.error('Please set NEXT_PUBLIC_API_URL in Vercel Dashboard > Settings > Environment Variables');
+    }
     // Trả về empty string để tránh gọi API sai
     return '';
   }
@@ -33,9 +39,13 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
-// Log để debug (chỉ trong development)
+// Log để debug
 if (process.env.NODE_ENV === 'development') {
   console.log('API Base URL:', API_BASE_URL);
+} else if (typeof window !== 'undefined' && !API_BASE_URL) {
+  // Cảnh báo trong production nếu API_BASE_URL không được set
+  console.error('⚠️ API_BASE_URL is empty in production! All API calls will fail.');
+  console.error('Please set NEXT_PUBLIC_API_URL in Vercel Dashboard > Settings > Environment Variables');
 }
 
 // Tạo axios instance với cấu hình mặc định

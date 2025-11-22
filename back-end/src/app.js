@@ -67,6 +67,20 @@ if (process.env.NODE_ENV === "development" || process.env.DEBUG === "true") {
 
 // Thiết lập middleware xử lý cookie và các dữ liệu body
 app.use(cookieParser());
+
+// Debug middleware để log tất cả cookies (chỉ log, không block)
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/admin")) {
+    console.log("\n=== Request Debug ===");
+    console.log("Path:", req.path);
+    console.log("Method:", req.method);
+    console.log("Origin:", req.headers.origin);
+    console.log("Cookies:", req.cookies);
+    console.log("Cookie header:", req.headers.cookie);
+    console.log("===================\n");
+  }
+  next();
+});
 // Tăng giới hạn kích thước body để hỗ trợ upload nhiều ảnh base64 (tối đa 5 ảnh x 10MB = 50MB)
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));

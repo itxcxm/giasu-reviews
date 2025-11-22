@@ -732,8 +732,8 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                             </div>
                             <div>
                               <span className="text-sm font-semibold text-blue-600 group-hover:text-blue-700 transition-colors">
-                                Thêm ảnh {reviewImages.length > 0 && `(${5 - reviewImages.length} ảnh còn lại)`}
-                              </span>
+                              Thêm ảnh {reviewImages.length > 0 && `(${5 - reviewImages.length} ảnh còn lại)`}
+                            </span>
                               <p className="text-xs text-slate-500 mt-1">PNG, JPG, GIF tối đa 10MB mỗi ảnh (tối đa 5 ảnh)</p>
                             </div>
                           </label>

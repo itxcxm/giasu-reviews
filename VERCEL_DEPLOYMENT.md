@@ -1,8 +1,20 @@
 # Hướng Dẫn Deploy Lên Vercel
 
-## Vấn Đề: Lỗi "Token không được cung cấp"
+## Vấn Đề: Lỗi 401 Unauthorized - "Token không được cung cấp"
 
-Khi deploy lên Vercel, bạn có thể gặp lỗi `{success: false, message: "Token không được cung cấp"}` khi gọi API `check-auth`. Đây là vấn đề về cookie và CORS configuration.
+Khi deploy lên Vercel, bạn có thể gặp lỗi **401 Unauthorized** với message `"Token không được cung cấp"` khi gọi API `/api/admin/check-auth`.
+
+### Dấu Hiệu Nhận Biết:
+
+- Request URL trong Network tab là: `https://giasu-reviews.vercel.app/api/admin/check-auth` (❌ SAI - đang gọi đến Vercel domain)
+- Thay vì: `https://your-backend-domain.com/api/admin/check-auth` (✅ ĐÚNG - phải gọi đến backend server)
+- Token đã được lưu trong cookie sau khi đăng nhập nhưng vẫn bị lỗi 401
+
+### Nguyên Nhân:
+
+1. **`NEXT_PUBLIC_API_URL` chưa được set** trên Vercel → Frontend gọi API đến chính domain Vercel thay vì backend
+2. **Chưa redeploy** sau khi thêm environment variables
+3. Cookie không được gửi đi do cấu hình CORS hoặc cookie settings chưa đúng
 
 ## Giải Pháp
 
@@ -53,19 +65,28 @@ Backend đã được cấu hình để:
 - Sử dụng `secure: true` khi production (yêu cầu HTTPS)
 - Hỗ trợ CORS với `credentials: true`
 
-### 3. Kiểm Tra API URL
+### 3. Kiểm Tra API URL (QUAN TRỌNG!)
 
-**Cách kiểm tra:**
+**Cách kiểm tra nhanh:**
 
-1. Mở DevTools > Console trong browser
-2. Gõ: `console.log('API URL:', process.env.NEXT_PUBLIC_API_URL)` (sẽ không hoạt động vì env vars không accessible từ client)
-3. Thay vào đó, mở DevTools > Network tab
-4. Tìm request đến `/api/admin/check-auth`
-5. Xem **Request URL** - nó phải trỏ đến backend server của bạn, KHÔNG phải domain Vercel
+1. Mở **DevTools** (F12) > Tab **Network**
+2. Thử đăng nhập hoặc refresh trang
+3. Tìm request đến `/api/admin/check-auth` hoặc bất kỳ API call nào
+4. Xem **Request URL** trong tab Headers:
+   - ❌ **SAI**: `https://giasu-reviews.vercel.app/api/admin/check-auth` 
+     → `NEXT_PUBLIC_API_URL` chưa được set hoặc chưa redeploy
+   - ✅ **ĐÚNG**: `https://your-backend-domain.com/api/admin/check-auth`
+     → Đã cấu hình đúng, kiểm tra các bước tiếp theo
 
-**Nếu Request URL là `https://giasu-reviews.vercel.app/api/...`** → `NEXT_PUBLIC_API_URL` chưa được set hoặc chưa redeploy
+**Nếu Request URL đang trỏ đến Vercel domain:**
 
-**Nếu Request URL là `https://your-backend.com/api/...`** → Đã cấu hình đúng ✅
+1. Vào **Vercel Dashboard** > Project của bạn > **Settings** > **Environment Variables**
+2. Kiểm tra xem có biến `NEXT_PUBLIC_API_URL` không
+3. Nếu chưa có, thêm mới với giá trị là URL backend của bạn (ví dụ: `https://api.yourdomain.com`)
+4. **QUAN TRỌNG**: Sau khi thêm/sửa, phải **Redeploy** project (Vercel không tự động redeploy khi thêm env vars)
+   - Vào tab **Deployments**
+   - Click vào deployment mới nhất
+   - Click nút **Redeploy** hoặc tạo một commit mới để trigger deployment
 
 ### 4. Test Sau Khi Deploy
 

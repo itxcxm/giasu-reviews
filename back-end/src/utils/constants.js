@@ -23,12 +23,28 @@ export const JWT_CONFIG = {
 export const getCookieOptions = () => {
   // Trong production, nếu front-end và back-end ở domain khác nhau, cần sameSite: "none" và secure: true
   const isProduction = process.env.NODE_ENV === "production";
-  const isCrossDomain =
-    process.env.CLIENT_URL && process.env.CLIENT_URL.includes("https://");
+
+  // Kiểm tra xem có CLIENT_URL được set không (thường là cross-domain trong production)
+  // Nếu CLIENT_URL chứa https:// hoặc có nhiều URLs (phân cách bởi dấu phẩy), có thể là cross-domain
+  const hasClientUrl =
+    process.env.CLIENT_URL && process.env.CLIENT_URL.trim() !== "";
+  const isCrossDomain = isProduction && hasClientUrl;
 
   // Khi sameSite: "none", BẮT BUỘC phải có secure: true
-  const sameSiteValue = isProduction && isCrossDomain ? "none" : "lax";
-  const secureValue = isProduction || sameSiteValue === "none"; // Secure bắt buộc khi sameSite: "none"
+  // Trong production với cross-domain, luôn dùng "none" để cookie có thể được gửi cross-domain
+  const sameSiteValue = isCrossDomain ? "none" : isProduction ? "lax" : "lax";
+  const secureValue = isProduction || sameSiteValue === "none"; // Secure bắt buộc khi sameSite: "none" hoặc production
+
+  // Debug log (chỉ trong development hoặc khi DEBUG=true)
+  if (process.env.NODE_ENV === "development" || process.env.DEBUG === "true") {
+    console.log("Cookie Options:", {
+      sameSite: sameSiteValue,
+      secure: secureValue,
+      isProduction,
+      isCrossDomain,
+      hasClientUrl,
+    });
+  }
 
   return {
     httpOnly: true,
