@@ -11,13 +11,24 @@ import { Lock, Mail, ShieldCheck } from 'lucide-react';
 import { adminAPI } from '@/lib/api';
 
 /**
- * Tối ưu cho Vercel:
- * - Đảm bảo request API cross-domain phải luôn đi kèm credentials (withCredentials).
- * - Xử lý chặt chẽ hơn việc kiểm tra đăng nhập, tránh redirect lặp/tạo request thừa trên Vercel lambda.
- * - Không rely vào client-side storage cho token, chỉ cookie.
- * - Có thể debug rõ hơn các lỗi liên quan tới cookie/set-cookie khi deploy Vercel.
- * - Nếu cần, có thể thêm debug thông tin lên UI để hỗ trợ test trên Vercel.
+ * Logic đăng nhập:
+ * 1. Kiểm tra xem đã có token trong cookies chưa (accessToken hoặc refreshToken)
+ * 2. Nếu chưa có token → hiển thị form đăng nhập ngay
+ * 3. Nếu có token → gọi API check-auth để kiểm tra token có hợp lệ không
+ *    - Nếu token đúng (authenticated: true) → redirect về /admin
+ *    - Nếu token sai hoặc hết hạn (authenticated: false) → hiển thị form đăng nhập
  */
+
+/**
+ * Kiểm tra xem có token trong cookies không
+ */
+function hasTokenInCookies(): boolean {
+  if (typeof document === 'undefined') return false;
+  
+  // Kiểm tra accessToken hoặc refreshToken trong cookies
+  const cookies = document.cookie;
+  return cookies.includes('accessToken=') || cookies.includes('refreshToken=');
+}
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
@@ -27,118 +38,127 @@ export default function AdminLoginPage() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const router = useRouter();
 
-  // Kiểm tra login state chỉ chạy khi mount, tối ưu cho môi trường serverless
   useEffect(() => {
     let ignore = false;
+
     const checkAuth = async () => {
-      try {
-        // adminAPI.checkAuth cần bắt buộc gửi credentials!
-        const response = await adminAPI.checkAuth();
-        
-        // Debug log (chỉ trong development)
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Check auth response:', response);
-        }
-        
+      // Bước 1: Kiểm tra xem có token trong cookies không
+      const hasToken = hasTokenInCookies();
+
+      if (!hasToken) {
+        // Không có token → hiển thị form đăng nhập ngay
         if (!ignore) {
-          // Kiểm tra response có đúng format không
-          if (response && typeof response === 'object') {
-            if (response.success && response.authenticated) {
-              // Đã đăng nhập, redirect về admin
-              router.replace('/admin');
-              return;
-            } else {
-              // Chưa đăng nhập hoặc không hợp lệ, hiển thị form
-              setCheckingAuth(false);
-              return;
-            }
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[LoginPage] No token found in cookies, showing login form');
+          }
+          setCheckingAuth(false);
+        }
+        return;
+      }
+
+      // Bước 2: Có token → gọi API check-auth để kiểm tra token có hợp lệ không
+      try {
+        const response = await adminAPI.checkAuth();
+
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[LoginPage] Check auth response:', response);
+        }
+
+        if (!ignore) {
+          if (response && typeof response === 'object' && response.success && response.authenticated) {
+            // Token đúng → đã đăng nhập thành công → redirect về admin
+            router.replace('/admin');
+            return;
           } else {
-            // Response không đúng format
-            console.error('Invalid check auth response:', response);
+            // Token sai hoặc hết hạn → hiển thị form đăng nhập
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[LoginPage] Token invalid or expired, showing login form');
+            }
             setCheckingAuth(false);
             return;
           }
         }
       } catch (err: any) {
         if (!ignore) {
-          // Log lỗi để debug
-          console.error('Check auth error:', err);
-          
-          // Lỗi, nhưng vẫn hiển thị form login
+          // Lỗi khi kiểm tra token → hiển thị form đăng nhập
+          console.error('[LoginPage] Check auth error:', err);
           setCheckingAuth(false);
         }
       }
     };
-    
-    // Thêm timeout để tránh bị stuck quá lâu (giảm xuống 5 giây cho nhanh hơn)
+
+    // Thêm timeout để tránh chờ quá lâu (5 giây)
     const timeoutId = setTimeout(() => {
       if (!ignore) {
-        console.warn('Check auth timeout, showing login form');
+        console.warn('[LoginPage] Check auth timeout, showing login form');
         setCheckingAuth(false);
       }
-    }, 5000); // 5 giây timeout
-    
+    }, 5000);
+
     checkAuth();
 
     return () => {
       ignore = true;
       clearTimeout(timeoutId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Không đưa router vào dependency, tránh re-fetch không cần thiết do route change của next/navigation
+  }, [router]);
 
+  // Xử lý khi người dùng submit form đăng nhập
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      // Thêm timeout cho login request
+      // Gọi API đăng nhập và set timeout cho request
       const loginPromise = adminAPI.login(email, password);
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Request timeout. Vui lòng thử lại.')), 15000);
       });
 
+      // Chỉ lấy response đầu tiên trả về (login thành công hoặc timeout)
       const response = await Promise.race([loginPromise, timeoutPromise]) as any;
 
       if (response && response.success && response.data) {
-        // Đăng nhập thành công, chuyển đến trang admin
+        // Đăng nhập thành công: backend sẽ tự động set token vào httpOnly cookie
+        // Không cần thao tác thêm với localStorage hay lấy token
+
+        // Chuyển hướng đến trang admin
         console.log('Login successful, redirecting to admin');
-        // Sử dụng window.location để đảm bảo redirect hoạt động
         window.location.href = '/admin';
       } else {
+        // Đăng nhập thất bại, hiển thị thông báo lỗi nếu có từ backend
         setError(response?.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
         setLoading(false);
       }
     } catch (err: any) {
-      // Log lỗi chi tiết
+      // Ghi log lỗi chi tiết ra console
       console.error('Login error:', {
         message: err?.message,
         response: err?.response?.data,
         status: err?.response?.status,
       });
 
-      // Khi Vercel gặp lỗi cookie sẽ vào đây; cần thông báo rõ ràng
+      // Xác định thông báo lỗi để hiển thị tiếng Việt
       let errorMessage = 'Đã xảy ra lỗi. Vui lòng thử lại.';
       if (err?.response?.data?.message) {
         errorMessage = err.response.data.message;
       } else if (err?.message) {
         errorMessage = err.message;
       }
-      
-      // Kiểm tra nếu là lỗi timeout hoặc network
+
       if (err?.message?.includes('timeout') || err?.code === 'ECONNABORTED') {
         errorMessage = 'Kết nối quá lâu. Vui lòng kiểm tra kết nối mạng và thử lại.';
       } else if (err?.message?.includes('Network Error') || !err?.response) {
         errorMessage = 'Không thể kết nối đến server. Vui lòng kiểm tra cấu hình API URL.';
       }
-      
+
       setError(errorMessage);
       setLoading(false);
     }
   };
 
-  // Đang kiểm tra đăng nhập, nên render loading (tránh flash login form gây nhầm lẫn trên Vercel)
+  // Nếu đang kiểm tra xác thực (cookie) thì return loading UI
   if (checkingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
@@ -150,6 +170,7 @@ export default function AdminLoginPage() {
     );
   }
 
+  // Hiển thị form đăng nhập nếu chưa xác thực hoặc kiểm tra thất bại
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-4">
       <div className="w-full max-w-md">
@@ -180,12 +201,14 @@ export default function AdminLoginPage() {
               className="space-y-4"
               autoComplete="on"
             >
+              {/* Hiển thị lỗi nếu có */}
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 
+              {/* Input email */}
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-medium">
                   Email
@@ -205,6 +228,7 @@ export default function AdminLoginPage() {
                 </div>
               </div>
 
+              {/* Input mật khẩu */}
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-sm font-medium">
                   Mật khẩu
@@ -224,9 +248,8 @@ export default function AdminLoginPage() {
                 </div>
               </div>
 
-              {/* Ghi nhớ đăng nhập không dùng localStorage/sessionStorage ở Vercel, vì chỉ cookie mới dùng được */}
+              {/* Tuỳ chọn "Ghi nhớ đăng nhập" (đang disabled) và liên kết quên mật khẩu */}
               <div className="flex items-center justify-between text-sm">
-                {/* Tùy chọn, cũng có thể bỏ đi nếu backend không có refresh token remember */}
                 <label className="flex items-center space-x-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -240,6 +263,7 @@ export default function AdminLoginPage() {
                 </a>
               </div>
 
+              {/* Nút đăng nhập */}
               <Button
                 type="submit"
                 className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-lg hover:shadow-xl transition-all"
@@ -249,6 +273,7 @@ export default function AdminLoginPage() {
               </Button>
             </form>
 
+            {/* Đoạn hiển thị nếu chưa có tài khoản */}
             <div className="mt-6 text-center text-sm text-slate-600">
               <p>
                 Bạn chưa có tài khoản?{' '}
@@ -260,11 +285,12 @@ export default function AdminLoginPage() {
           </CardContent>
         </Card>
 
+        {/* Footer nhỏ bản quyền/bảo mật */}
         <p className="text-center text-xs text-slate-500 mt-8">
           © 2025 Gia Sư Reviews. Bảo mật và được bảo vệ.
         </p>
 
-        {/* DEBUG cookie trên Vercel (ẩn ở prod): */}
+        {/* Hiển thị debug info khi không ở production */}
         {process.env.NODE_ENV !== 'production' && (
           <div className="mt-4 text-xs text-slate-500 text-center">
             <p>
