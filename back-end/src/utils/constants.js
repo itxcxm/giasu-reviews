@@ -31,7 +31,8 @@ export const getCookieOptions = () => {
 
   // Trên Vercel, frontend và backend thường ở domain khác nhau (cross-domain)
   // Nếu có CLIENT_URL trong production, giả định là cross-domain
-  const isCrossDomain = isProduction && hasClientUrl;
+  // HOẶC nếu đang ở production (Vercel), luôn giả định cross-domain để an toàn
+  const isCrossDomain = isProduction && (hasClientUrl || true); // Luôn true trong production để đảm bảo cookies hoạt động
 
   // Khi sameSite: "none", BẮT BUỘC phải có secure: true
   // Trong production với cross-domain, luôn dùng "none" để cookie có thể được gửi cross-domain
@@ -41,7 +42,7 @@ export const getCookieOptions = () => {
   // Secure bắt buộc khi sameSite: "none" hoặc production (Vercel luôn dùng HTTPS)
   const secureValue = isProduction || sameSiteValue === "none";
 
-  return {
+  const options = {
     httpOnly: true,
     secure: secureValue, // Secure bắt buộc khi sameSite: "none" hoặc production
     sameSite: sameSiteValue, // "none" cho cross-domain, "lax" cho same-site
@@ -49,4 +50,21 @@ export const getCookieOptions = () => {
     // Không set domain để cookie hoạt động với domain hiện tại
     // Domain sẽ tự động được set bởi browser dựa trên domain của response
   };
+
+  // Log để debug (chỉ trong development hoặc khi cần)
+  if (
+    process.env.NODE_ENV === "development" ||
+    process.env.DEBUG_COOKIES === "true"
+  ) {
+    console.log("getCookieOptions() result:", {
+      isProduction,
+      hasClientUrl,
+      isCrossDomain,
+      sameSiteValue,
+      secureValue,
+      options,
+    });
+  }
+
+  return options;
 };

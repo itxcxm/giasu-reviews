@@ -135,17 +135,40 @@ export class AdminController {
       const accessToken = generateToken(admin._id);
       const refreshToken = generateRefreshToken(admin._id);
 
-      // Gửi cookie về client
-      res.cookie("accessToken", accessToken, {
+      // Log cookie options để debug (chỉ trong development hoặc khi cần)
+      if (
+        process.env.NODE_ENV === "development" ||
+        process.env.DEBUG_COOKIES === "true"
+      ) {
+        console.log("Cookie options:", JSON.stringify(cookieOptions, null, 2));
+        console.log("CLIENT_URL:", process.env.CLIENT_URL);
+        console.log("NODE_ENV:", process.env.NODE_ENV);
+      }
+
+      // Gửi cookie về client - ĐẢM BẢO set cookies trước khi gửi response
+      const accessTokenOptions = {
         ...cookieOptions,
         maxAge: 15 * 60 * 1000, // 15 phút
-      });
-      res.cookie("refreshToken", refreshToken, {
+      };
+      const refreshTokenOptions = {
         ...cookieOptions,
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
-      });
+      };
+
+      res.cookie("accessToken", accessToken, accessTokenOptions);
+      res.cookie("refreshToken", refreshToken, refreshTokenOptions);
+
+      // Đảm bảo cookies được gửi - kiểm tra headers đã được set
+      if (
+        process.env.NODE_ENV === "development" ||
+        process.env.DEBUG_COOKIES === "true"
+      ) {
+        const setCookieHeaders = res.getHeader("Set-Cookie");
+        console.log("Set-Cookie headers:", setCookieHeaders);
+      }
 
       // Trả về thông tin đăng nhập thành công (ẩn trường nhạy cảm)
+      // QUAN TRỌNG: Phải gửi response sau khi set cookies
       return res.status(HTTP_STATUS.OK).json({
         success: true,
         message: "Đăng nhập thành công",
