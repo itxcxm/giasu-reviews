@@ -1,5 +1,6 @@
 'use client';
 
+// Các import bên dưới: import các hook, component UI và API dùng cho quản trị trung tâm
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -37,13 +38,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Image from 'next/image';
 import { centersAPI, Center, imageToBase64 } from '@/lib/api';
 
+// Số lượng bản ghi trên mỗi trang
 const ITEMS_PER_PAGE = 5;
 
+// Interface để lưu status theo kiểu chuỗi
 interface CenterWithStatus extends Center {
   status?: 'active' | 'inactive';
 }
 
 export default function AdminCentersPage() {
+  // State dùng để quản lý danh sách trung tâm, trạng thái loading, lỗi, v.v...
   const [centers, setCenters] = useState<CenterWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +59,8 @@ export default function AdminCentersPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingCenter, setEditingCenter] = useState<CenterWithStatus | null>(null);
   const [deletingCenterId, setDeletingCenterId] = useState<string | null>(null);
-  
+
+  // State cho image và form
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
@@ -68,11 +73,12 @@ export default function AdminCentersPage() {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  // Load centers từ API
+  // Lấy danh sách trung tâm từ API khi load trang
   useEffect(() => {
     loadCenters();
   }, []);
 
+  // Hàm lấy danh sách trung tâm - gọi API
   const loadCenters = async () => {
     try {
       setLoading(true);
@@ -81,13 +87,11 @@ export default function AdminCentersPage() {
         sortBy: 'createdAt',
         sortOrder: 'desc',
       });
-      
-      // Transform centers để thêm status từ isVerified
+      // Convert state isVerified sang status dạng chuỗi để dễ lọc
       const transformedCenters: CenterWithStatus[] = (response.data || []).map((center: Center) => ({
         ...center,
         status: center.isVerified ? 'active' : 'inactive',
       }));
-      
       setCenters(transformedCenters);
     } catch (err: any) {
       console.error('Error loading centers:', err);
@@ -97,6 +101,7 @@ export default function AdminCentersPage() {
     }
   };
 
+  // Danh sách trung tâm lọc theo tìm kiếm và trạng thái
   const filteredCenters = useMemo(() => {
     return centers.filter(
       (center) =>
@@ -106,22 +111,26 @@ export default function AdminCentersPage() {
     );
   }, [centers, searchQuery, statusFilter]);
 
+  // Tổng số trang và danh sách trung tâm của trang hiện tại
   const totalPages = Math.ceil(filteredCenters.length / ITEMS_PER_PAGE);
   const paginatedCenters = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     return filteredCenters.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredCenters, currentPage]);
 
+  // Lấy danh sách trung tâm chưa duyệt (status === 'inactive')
   const unapprovedCenters = useMemo(() => {
     return centers.filter((center) => center.status === 'inactive');
   }, [centers]);
 
+  // Tổng số trang chưa duyệt và phân trang danh sách chưa duyệt
   const unapprovedTotalPages = Math.ceil(unapprovedCenters.length / ITEMS_PER_PAGE);
   const paginatedUnapprovedCenters = useMemo(() => {
     const startIndex = (unapprovedPage - 1) * ITEMS_PER_PAGE;
     return unapprovedCenters.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [unapprovedCenters, unapprovedPage]);
 
+  // Khi mở dialog thêm/sửa trung tâm
   const handleOpenDialog = (center?: CenterWithStatus) => {
     if (center) {
       setEditingCenter(center);
@@ -151,6 +160,7 @@ export default function AdminCentersPage() {
     setIsDialogOpen(true);
   };
 
+  // Đóng dialog thêm/sửa trung tâm
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
     setEditingCenter(null);
@@ -158,6 +168,7 @@ export default function AdminCentersPage() {
     setImageFile(null);
   };
 
+  // Khi chọn file ảnh mới
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -171,9 +182,9 @@ export default function AdminCentersPage() {
         alert('Kích thước ảnh không được vượt quá 10MB');
         return;
       }
-      
+
       setImageFile(file);
-      // Chỉ dùng base64 cho preview, không lưu vào formData
+      // Lấy base64 cho preview
       try {
         const base64 = await imageToBase64(file);
         setImagePreview(base64);
@@ -184,17 +195,19 @@ export default function AdminCentersPage() {
     }
   };
 
+  // Xoá ảnh đã chọn
   const handleRemoveImage = () => {
     setImagePreview(null);
     setImageFile(null);
-    // Nếu đang edit, giữ nguyên URL hiện tại trong formData
+    // Nếu là thêm mới thì xoá luôn ở formData
     if (!editingCenter) {
       setFormData({ ...formData, image: '' });
     }
   };
 
+  // Lưu/trả về việc thêm/sửa trung tâm - gọi API
   const handleSubmit = async () => {
-    // Chỉ cần kiểm tra tên trung tâm
+    // Kiểm tra rỗng tên trung tâm
     if (!formData.name || !formData.name.trim()) {
       alert('Vui lòng nhập tên trung tâm');
       return;
@@ -202,21 +215,20 @@ export default function AdminCentersPage() {
 
     try {
       setSubmitting(true);
-      
+
       if (editingCenter) {
-        // Cập nhật center
+        // Dữ liệu gửi đi khi sửa
         const centerData: any = {
           name: formData.name,
           address: formData.address || undefined,
           phone: formData.phone || undefined,
           website: formData.website || undefined,
         };
-        
-        // Nếu có file mới, convert sang base64 và gửi lên server (server sẽ upload và lấy URL)
+
+        // Nếu có file ảnh mới => upload base64 lên server
         if (imageFile) {
           try {
             const base64 = await imageToBase64(imageFile);
-            // Gửi base64 lên server, server sẽ upload và trả về URL
             centerData.image = base64;
           } catch (error) {
             console.error('Error converting image to base64:', error);
@@ -225,39 +237,39 @@ export default function AdminCentersPage() {
             return;
           }
         } else if (formData.image && !formData.image.startsWith('data:image/')) {
-          // Giữ nguyên URL hiện tại (không phải base64)
+          // Nếu giữ nguyên URL cũ
           centerData.image = formData.image;
         }
-        // Nếu không có imageFile và không có formData.image, không update image
-        
-        const response = await centersAPI.updateCenter(
+        // Nếu bỏ trống thì không gửi lên
+
+        // Gửi API cập nhật
+        await centersAPI.updateCenter(
           editingCenter._id || editingCenter.id || '',
           centerData
         );
-        
-        // Nếu status thay đổi, cập nhật isVerified
+
+        // Nếu trạng thái thay đổi thì đổi isVerified
         if (formData.status !== editingCenter.status) {
           await centersAPI.verifyCenter(
             editingCenter._id || editingCenter.id || '',
             formData.status === 'active'
           );
         }
-        
+
         await loadCenters();
       } else {
-        // Tạo center mới - gửi tất cả dữ liệu (address, phone, website là tùy chọn)
-        // Sử dụng route admin để không bị rate limit
+        // Thêm mới trung tâm (address, phone, website là tùy chọn)
         await centersAPI.createCenter({
           name: formData.name,
           address: formData.address || undefined,
           phone: formData.phone || undefined,
           website: formData.website || undefined,
           imageFile: imageFile || undefined,
-          isAdmin: true, // Đánh dấu là admin để sử dụng route admin
+          isAdmin: true, // Đánh dấu tạo bởi admin
         });
         await loadCenters();
       }
-      
+
       setCurrentPage(1);
       handleCloseDialog();
     } catch (error: any) {
@@ -268,16 +280,19 @@ export default function AdminCentersPage() {
     }
   };
 
+  // Khi nhấn nút xoá 1 trung tâm
   const handleDelete = (center: CenterWithStatus) => {
     setDeletingCenterId(center._id || center.id || null);
     setIsDeleteDialogOpen(true);
   };
 
+  // API xác nhận xoá trung tâm
   const confirmDelete = async () => {
     if (deletingCenterId) {
       try {
         await centersAPI.deleteCenter(deletingCenterId);
         await loadCenters();
+        // Nếu xoá hết trang này thì chuyển về trang trước
         if (paginatedCenters.length === 1 && currentPage > 1) {
           setCurrentPage(currentPage - 1);
         }
@@ -290,6 +305,7 @@ export default function AdminCentersPage() {
     setDeletingCenterId(null);
   };
 
+  // Đổi trạng thái (duyệt / chưa duyệt) của trung tâm
   const toggleStatus = async (center: CenterWithStatus) => {
     try {
       const newStatus = center.isVerified ? false : true;
@@ -301,13 +317,14 @@ export default function AdminCentersPage() {
     }
   };
 
+  // Đếm số trung tâm đã duyệt/chưa duyệt
   const activeCentersCount = centers.filter(c => c.status === 'active').length;
   const inactiveCentersCount = centers.filter(c => c.status === 'inactive').length;
 
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="grid gap-6">
-        {/* Header */}
+        {/* Header Tiêu đề và nút Thêm mới */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-foreground">
@@ -323,7 +340,7 @@ export default function AdminCentersPage() {
           </Button>
         </div>
 
-        {/* Stats */}
+        {/* Thống kê số lượng trung tâm */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="pb-2">
@@ -357,7 +374,7 @@ export default function AdminCentersPage() {
           </Card>
         </div>
 
-        {/* Unapproved Centers */}
+        {/* Card hiển thị các trung tâm chưa duyệt */}
         <Card>
           <CardHeader>
             <CardTitle>Trung tâm chưa duyệt</CardTitle>
@@ -379,6 +396,7 @@ export default function AdminCentersPage() {
             ) : (
               <>
                 <div className="space-y-3 mb-4">
+                  {/* Liệt kê các trung tâm chưa duyệt, phân trang */}
                   {paginatedUnapprovedCenters.map((center) => (
                     <div key={center._id || center.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50">
                       <div className="flex-1">
@@ -439,7 +457,7 @@ export default function AdminCentersPage() {
           </CardContent>
         </Card>
 
-        {/* Search and Filter */}
+        {/* Thanh tìm kiếm và bộ lọc trạng thái */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -467,7 +485,7 @@ export default function AdminCentersPage() {
           </select>
         </div>
 
-        {/* Table */}
+        {/* Bảng danh sách trung tâm (có chỉnh sửa, xoá) */}
         <div className="rounded-md border">
           <Table>
             <TableHeader>
@@ -505,6 +523,7 @@ export default function AdminCentersPage() {
                   </TableCell>
                 </TableRow>
               ) : (
+                // Hiển thị dữ liệu trong bảng
                 paginatedCenters.map((center) => (
                   <TableRow key={center._id || center.id}>
                     <TableCell className="font-medium">
@@ -553,7 +572,7 @@ export default function AdminCentersPage() {
           </Table>
         </div>
 
-        {/* Pagination and Info */}
+        {/* Phân trang & thông tin số lượng bản ghi hiển thị */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="text-sm text-muted-foreground">
             Hiển thị {paginatedCenters.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredCenters.length)} từ {filteredCenters.length} trung tâm
@@ -592,7 +611,7 @@ export default function AdminCentersPage() {
         </div>
       </div>
 
-      {/* Add/Edit Dialog */}
+      {/* Dialog thêm/sửa trung tâm */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -607,6 +626,7 @@ export default function AdminCentersPage() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
+              {/* Nhập tên trung tâm */}
               <Label htmlFor="name">Tên trung tâm *</Label>
               <Input
                 id="name"
@@ -618,6 +638,7 @@ export default function AdminCentersPage() {
               />
             </div>
             <div className="grid gap-2">
+              {/* Nhập địa chỉ */}
               <Label htmlFor="address">Địa chỉ</Label>
               <Input
                 id="address"
@@ -629,6 +650,7 @@ export default function AdminCentersPage() {
               />
             </div>
             <div className="grid gap-2">
+              {/* Nhập SĐT */}
               <Label htmlFor="phone">Điện thoại</Label>
               <Input
                 id="phone"
@@ -640,6 +662,7 @@ export default function AdminCentersPage() {
               />
             </div>
             <div className="grid gap-2">
+              {/* Nhập website */}
               <Label htmlFor="website">Website</Label>
               <Input
                 id="website"
@@ -651,6 +674,7 @@ export default function AdminCentersPage() {
               />
             </div>
             <div className="grid gap-2">
+              {/* Upload hoặc chọn lại ảnh trung tâm */}
               <Label htmlFor="image">Hình ảnh *</Label>
               {imagePreview ? (
                 <div className="relative w-full h-48 border rounded-lg overflow-hidden">
@@ -695,6 +719,7 @@ export default function AdminCentersPage() {
                 </div>
               )}
             </div>
+            {/* Chỉ hiện trường chọn trạng thái khi sửa trung tâm */}
             {editingCenter && (
               <div className="grid gap-2">
                 <Label htmlFor="status">Trạng thái</Label>
@@ -733,7 +758,7 @@ export default function AdminCentersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Dialog xác nhận xoá trung tâm */}
       <AlertDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}

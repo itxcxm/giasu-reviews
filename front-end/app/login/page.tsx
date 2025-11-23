@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,30 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const router = useRouter();
+
+  // Kiểm tra xem đã đăng nhập chưa khi component mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await adminAPI.checkAuth();
+        if (response.success && response.authenticated) {
+          // Đã đăng nhập, redirect về admin
+          router.push('/admin');
+        } else {
+          // Chưa đăng nhập, cho phép hiển thị form
+          setCheckingAuth(false);
+        }
+      } catch (err) {
+        // Lỗi khi kiểm tra, vẫn cho phép hiển thị form
+        console.error('Error checking auth:', err);
+        setCheckingAuth(false);
+      }
+    };
+
+    checkAuth();
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +69,18 @@ export default function AdminLoginPage() {
       setLoading(false);
     }
   };
+
+  // Hiển thị loading khi đang kiểm tra auth
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+          <p className="text-slate-600">Đang kiểm tra đăng nhập...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-4">

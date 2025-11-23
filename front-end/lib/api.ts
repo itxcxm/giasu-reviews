@@ -1,62 +1,99 @@
 // API utility functions
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosError } from 'axios';
 
-// Lấy API URL từ environment variable hoặc dùng default
-// Trong server-side rendering, có thể cần dùng 127.0.0.1 thay vì localhost
-const getApiBaseUrl = () => {
+/**
+ * Lấy API URL từ environment variable
+ * Tối ưu cho Vercel production
+ */
+const getApiBaseUrl = (): string => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isServer = typeof window === 'undefined';
+  
   // Ưu tiên NEXT_PUBLIC_API_URL (available cả client và server)
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    const url = process.env.NEXT_PUBLIC_API_URL.trim();
+  const publicApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  
+  if (publicApiUrl) {
     // Đảm bảo URL có protocol
-    if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
-      console.warn('NEXT_PUBLIC_API_URL should include protocol (http:// or https://)');
-      return `https://${url}`;
+    if (publicApiUrl.startsWith('http://') || publicApiUrl.startsWith('https://')) {
+      return publicApiUrl;
     }
-    return url;
+    // Tự động thêm https:// cho production
+    if (isProduction) {
+      return `https://${publicApiUrl}`;
+    }
+    return `http://${publicApiUrl}`;
   }
   
-  // Fallback cho server-side rendering
-  if (typeof window === 'undefined') {
-    return process.env.API_URL || 'http://127.0.0.1:5000';
-  }
-  
-  // Fallback cho client-side (chỉ dùng trong development)
-  // Trong production, NEXT_PUBLIC_API_URL phải được set
-  if (process.env.NODE_ENV === 'production') {
-    const errorMsg = '❌ NEXT_PUBLIC_API_URL is not set in production! This will cause API calls to fail. Please configure it in Vercel environment variables.';
-    console.error(errorMsg);
-    // Trong production, nếu không có API URL, throw error để dễ debug
-    if (typeof window !== 'undefined') {
-      console.error('Current window location:', window.location.href);
-      console.error('Please set NEXT_PUBLIC_API_URL in Vercel Dashboard > Settings > Environment Variables');
+  // Production: BẮT BUỘC phải có NEXT_PUBLIC_API_URL
+  if (isProduction) {
+    const errorMsg = 'NEXT_PUBLIC_API_URL is required in production. Please set it in Vercel Environment Variables.';
+    if (isServer) {
+      console.error(`[Server] ${errorMsg}`);
+    } else {
+      console.error(`[Client] ${errorMsg}`);
     }
     // Trả về empty string để tránh gọi API sai
     return '';
   }
   
-  return process.env.NEXT_PUBLIC_API_URL;
+  // Development fallback
+  if (isServer) {
+    return process.env.API_URL || 'http://127.0.0.1:5000';
+  }
+  
+  return 'http://localhost:5000';
 };
 
 const API_BASE_URL = getApiBaseUrl();
 
-// Log để debug
-if (process.env.NODE_ENV === 'development') {
-  console.log('API Base URL:', API_BASE_URL);
-} else if (typeof window !== 'undefined' && !API_BASE_URL) {
-  // Cảnh báo trong production nếu API_BASE_URL không được set
+// Validate API URL trong production
+if (process.env.NODE_ENV === 'production' && !API_BASE_URL) {
   console.error('⚠️ API_BASE_URL is empty in production! All API calls will fail.');
   console.error('Please set NEXT_PUBLIC_API_URL in Vercel Dashboard > Settings > Environment Variables');
 }
 
-// Tạo axios instance với cấu hình mặc định
+// Tạo axios instance với cấu hình tối ưu cho Vercel
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: true, // Tương đương với credentials: 'include'
+  withCredentials: true, // Quan trọng cho cookies authentication
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 giây timeout
+  timeout: 30000, // 30 giây timeout cho production (Vercel có thể chậm hơn)
+  // Tối ưu cho production
+  maxRedirects: 5,
+  validateStatus: (status) => status < 500, // Không throw error cho 4xx
 });
+
+// Response interceptor để xử lý lỗi tốt hơn trong production
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    // Log lỗi trong development, ẩn trong production
+    if (process.env.NODE_ENV === 'development') {
+      console.error('API Error:', {
+        message: error.message,
+        url: error.config?.url,
+        status: error.response?.status,
+        baseURL: error.config?.baseURL,
+      });
+    }
+    
+    // Xử lý lỗi kết nối
+    if (!error.response) {
+      const isProduction = process.env.NODE_ENV === 'production';
+      const baseURL = error.config?.baseURL || API_BASE_URL;
+      
+      if (isProduction && !baseURL) {
+        return Promise.reject(new Error('API URL chưa được cấu hình. Vui lòng kiểm tra environment variables trên Vercel.'));
+      }
+      
+      return Promise.reject(new Error('Không thể kết nối đến server. Vui lòng thử lại sau.'));
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 // Types
 export interface Center {
@@ -136,19 +173,16 @@ export const centersAPI = {
   },
 
   // Tạo center mới
-  // Nếu isAdmin = true, sử dụng route admin (không có rate limit)
   async createCenter(data: CreateCenterData & { imageFile?: File; isAdmin?: boolean }): Promise<{ success: boolean; data: Center; message?: string }> {
-    // Xác định endpoint dựa trên isAdmin
     const endpoint = data.isAdmin ? '/api/centers/admin/create' : '/api/centers';
     
-    // Nếu có file, gửi dưới dạng FormData
     if (data.imageFile) {
       const formData = new FormData();
       formData.append('name', data.name);
       formData.append('address', data.address || '');
       formData.append('phone', data.phone || '');
       formData.append('website', data.website || '');
-      formData.append('image', data.imageFile); // 'image' cho single file upload
+      formData.append('image', data.imageFile);
 
       const response = await apiClient.post(endpoint, formData, {
         headers: {
@@ -157,7 +191,6 @@ export const centersAPI = {
       });
       return response.data;
     } else {
-      // Gửi dưới dạng JSON (backward compatibility với base64)
       const response = await apiClient.post(endpoint, data);
       return response.data;
     }
@@ -165,14 +198,12 @@ export const centersAPI = {
 
   // Thêm review cho center
   async addReview(centerId: string, data: CreateReviewData & { images?: File[] }): Promise<{ success: boolean; data: Center; message?: string }> {
-    // Nếu có files, gửi dưới dạng FormData
     if (data.images && data.images.length > 0) {
       const formData = new FormData();
       formData.append('rating', data.rating.toString());
       formData.append('comment', data.comment || '');
       formData.append('reviewerName', data.reviewerName || '');
       
-      // Thêm tất cả files vào FormData
       data.images.forEach((file) => {
         formData.append('images', file);
       });
@@ -184,7 +215,6 @@ export const centersAPI = {
       });
       return response.data;
     } else {
-      // Gửi dưới dạng JSON (backward compatibility)
       const response = await apiClient.post(`/api/centers/${centerId}/reviews`, data);
       return response.data;
     }
@@ -252,6 +282,7 @@ export const adminAPI = {
   },
 
   // Kiểm tra đăng nhập
+  // Endpoint này luôn trả về success: true, authenticated: true/false
   async checkAuth(): Promise<{ success: boolean; authenticated: boolean; message: string; data?: { admin: any } }> {
     try {
       const response = await apiClient.get('/api/admin/check-auth');
@@ -273,7 +304,6 @@ export const adminAPI = {
 };
 
 // Helper function để upload image và lấy URL
-// Note: Hiện tại backend chưa có endpoint upload image, nên tạm thời convert sang base64
 export const imageToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

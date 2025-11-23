@@ -1,5 +1,6 @@
 'use client';
 
+// Import các thư viện và component cần thiết
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -37,14 +38,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Image from 'next/image';
 import { centersAPI, Review } from '@/lib/api';
 
+// Định nghĩa kiểu dữ liệu review có thêm cờ trạng thái và tên học viên
 interface ReviewWithStatus extends Review {
   status?: 'approved' | 'pending' | 'rejected';
   studentName?: string;
 }
 
+// Số lượng item trên mỗi trang
 const ITEMS_PER_PAGE = 5;
 
 export default function AdminReviewsPage() {
+  // Các biến state phục vụ cho quản lý dữ liệu & UI
   const [reviews, setReviews] = useState<ReviewWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +63,7 @@ export default function AdminReviewsPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [reviewImages, setReviewImages] = useState<string[]>([]);
+  // Trạng thái cho form thêm/chỉnh sửa review (dù chức năng này bị tắt phía admin)
   const [formData, setFormData] = useState({
     centerName: '',
     studentName: '',
@@ -68,12 +73,12 @@ export default function AdminReviewsPage() {
     status: 'approved' as 'approved' | 'pending' | 'rejected',
   });
 
-
-  // Load reviews từ API
+  // Lấy danh sách đánh giá từ API khi component mount
   useEffect(() => {
     loadReviews();
   }, []);
 
+  // Hàm lấy danh sách đánh giá và cập nhật state
   const loadReviews = async () => {
     try {
       setLoading(true);
@@ -83,15 +88,17 @@ export default function AdminReviewsPage() {
         sortOrder: 'desc',
       });
       
-      // Transform reviews để thêm status và studentName
+      // Chuyển đổi dữ liệu review: gắn status + tên học viên lấy từ reviewerName
       const transformedReviews: ReviewWithStatus[] = (response.data || []).map((review: Review) => ({
         ...review,
-        status: 'approved' as const, // Tất cả reviews đã được duyệt (vì đã được thêm vào center)
-        studentName: review.reviewerName || 'Người dùng', // Sử dụng reviewerName từ API
+        // Giả định toàn bộ review load được từ API đã được duyệt
+        status: 'approved' as const, // Có thể mở rộng về sau để hỗ trợ duyệt nếu có trường status
+        studentName: review.reviewerName || 'Người dùng',
       }));
-      
+
       setReviews(transformedReviews);
     } catch (err: any) {
+      // Xử lý lỗi khi gọi API
       console.error('Error loading reviews:', err);
       setError('Không thể tải danh sách đánh giá');
     } finally {
@@ -99,6 +106,7 @@ export default function AdminReviewsPage() {
     }
   };
 
+  // Danh sách review theo tìm kiếm và filter trạng thái
   const filteredReviews = useMemo(() => {
     return reviews.filter(
       (review) =>
@@ -109,12 +117,15 @@ export default function AdminReviewsPage() {
     );
   }, [reviews, searchQuery, statusFilter]);
 
+  // Tính số trang dựa trên số review có sau filter
   const totalPages = Math.ceil(filteredReviews.length / ITEMS_PER_PAGE);
+  // Danh sách review trên trang hiện tại
   const paginatedReviews = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     return filteredReviews.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredReviews, currentPage]);
 
+  // Lấy 5 đánh giá mới nhất
   const latestReviews = useMemo(() => {
     return [...reviews]
       .sort((a, b) => {
@@ -125,6 +136,7 @@ export default function AdminReviewsPage() {
       .slice(0, 5);
   }, [reviews]);
 
+  // Mở dialog xem chi tiết review (hoặc giả lập thêm mới)
   const handleOpenDialog = (review?: ReviewWithStatus) => {
     if (review) {
       setEditingReview(review);
@@ -136,7 +148,7 @@ export default function AdminReviewsPage() {
         image: review.image || '',
         status: review.status || 'approved',
       });
-      // Lấy danh sách hình ảnh từ review (ưu tiên images array, fallback về image)
+      // Ưu tiên lấy images (nếu có), nếu không thì chỉ lấy image đơn lẻ
       const images = (review.images && review.images.length > 0) 
         ? review.images 
         : (review.image ? [review.image] : []);
@@ -160,6 +172,7 @@ export default function AdminReviewsPage() {
     setIsDialogOpen(true);
   };
 
+  // Đóng dialog xem/chỉnh sửa review
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
     setEditingReview(null);
@@ -168,6 +181,7 @@ export default function AdminReviewsPage() {
     setReviewImages([]);
   };
 
+  // Xử lý khi upload hình ảnh
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -181,18 +195,20 @@ export default function AdminReviewsPage() {
     }
   };
 
+  // Xóa hình ảnh đã chọn
   const handleRemoveImage = () => {
     setImagePreview(null);
     setImageFile(null);
     setFormData({ ...formData, image: '' });
   };
 
+  // Hàm xử lý khi submit form (Giao diện thôi, thực tế admin không được tạo)
   const handleSubmit = () => {
-    // Note: Hiện tại không có API để tạo review trực tiếp từ admin
-    // Reviews chỉ được tạo từ users qua center
+    // Chưa hỗ trợ tạo review bởi admin (nên chỉ reset lại dialog)
     handleCloseDialog();
   };
 
+  // Gán review chuẩn bị xóa và mở dialog xác nhận xóa
   const handleDelete = (review: ReviewWithStatus) => {
     if (review.centerId && (review._id || review.id)) {
       setDeletingReview({
@@ -203,11 +219,14 @@ export default function AdminReviewsPage() {
     }
   };
 
+  // Hàm xác nhận xóa và gọi API xóa review
   const confirmDelete = async () => {
     if (deletingReview) {
       try {
         await centersAPI.deleteReview(deletingReview.centerId, deletingReview.reviewId);
-        await loadReviews(); // Reload danh sách
+        // Sau khi xóa, tải lại review
+        await loadReviews();
+        // Nếu xóa review cuối cùng của trang và không phải trang đầu, chuyển sang trang trước đó
         if (paginatedReviews.length === 1 && currentPage > 1) {
           setCurrentPage(currentPage - 1);
         }
@@ -220,13 +239,16 @@ export default function AdminReviewsPage() {
     setDeletingReview(null);
   };
 
+  // Đếm số lượng review từng trạng thái
   const approvedCount = reviews.filter(r => r.status === 'approved').length;
   const pendingCount = reviews.filter(r => r.status === 'pending').length;
   const rejectedCount = reviews.filter(r => r.status === 'rejected').length;
+  // Tính điểm đánh giá trung bình
   const averageRating = reviews.length > 0 
     ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length).toFixed(1) 
     : '0';
 
+  // Hàm trả về style badge dựa trên trạng thái review
   const getStatusBadgeVariant = (status?: string) => {
     switch (status) {
       case 'approved':
@@ -238,6 +260,7 @@ export default function AdminReviewsPage() {
     }
   };
 
+  // Hàm trả về nhãn trạng thái bằng tiếng Việt cho review
   const getStatusLabel = (status?: string) => {
     switch (status) {
       case 'rejected':
@@ -251,6 +274,7 @@ export default function AdminReviewsPage() {
     <div className="container mx-auto py-8 px-4">
       <div className="grid gap-6">
         {/* Header */}
+        {/* PHẦN ĐẦU TRANG: Tiêu đề và mô tả chức năng quản lý đánh giá */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-foreground">
@@ -263,6 +287,7 @@ export default function AdminReviewsPage() {
         </div>
 
         {/* Stats */}
+        {/* THỐNG KÊ: Tổng số, đã duyệt, chờ duyệt, trung bình sao */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="pb-2">
@@ -310,6 +335,7 @@ export default function AdminReviewsPage() {
         </div>
 
         {/* Latest Reviews */}
+        {/* DANH SÁCH 5 ĐÁNH GIÁ MỚI NHẤT */}
         <Card>
           <CardHeader>
             <CardTitle>Đánh giá mới nhất</CardTitle>
@@ -334,6 +360,7 @@ export default function AdminReviewsPage() {
                         <p className="text-sm text-muted-foreground">{review.studentName || 'Người dùng'}</p>
                       </div>
                       <div className="flex items-center gap-1">
+                        {/* Hiển thị số sao đánh giá */}
                         {Array.from({ length: 5 }).map((_, i) => (
                           <Star
                             key={i}
@@ -356,6 +383,7 @@ export default function AdminReviewsPage() {
         </Card>
 
         {/* Search and Filter */}
+        {/* THANH TÌM KIẾM VÀ LỌC TRẠNG THÁI */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -369,6 +397,7 @@ export default function AdminReviewsPage() {
               className="pl-10"
             />
           </div>
+          {/* Dropdown chọn trạng thái filter */}
           <select
             value={statusFilter}
             onChange={(e) => {
@@ -383,6 +412,7 @@ export default function AdminReviewsPage() {
         </div>
 
         {/* Table */}
+        {/* Bảng danh sách đánh giá đã lọc/phân trang */}
         <div className="rounded-md border">
           <Table>
             <TableHeader>
@@ -429,6 +459,7 @@ export default function AdminReviewsPage() {
                     <TableCell>{review.studentName || 'Người dùng'}</TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1">
+                        {/* Hiển thị số sao đánh giá */}
                         {Array.from({ length: 5 }).map((_, i) => (
                           <Star
                             key={i}
@@ -442,6 +473,7 @@ export default function AdminReviewsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        {/* Nút mở dialog xem chi tiết review */}
                         <Button
                           variant="outline"
                           size="sm"
@@ -449,6 +481,7 @@ export default function AdminReviewsPage() {
                         >
                           <FileText className="h-4 w-4" />
                         </Button>
+                        {/* Nút xóa review */}
                         <Button
                           variant="destructive"
                           size="sm"
@@ -466,6 +499,7 @@ export default function AdminReviewsPage() {
         </div>
 
         {/* Pagination and Info */}
+        {/* PHÂN TRANG bảng danh sách đánh giá */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="text-sm text-muted-foreground">
             Hiển thị {paginatedReviews.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredReviews.length)} từ {filteredReviews.length} đánh giá
@@ -480,6 +514,7 @@ export default function AdminReviewsPage() {
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <div className="flex items-center gap-2">
+              {/* Hiển thị từng nút số trang */}
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                 <Button
                   key={page}
@@ -505,6 +540,7 @@ export default function AdminReviewsPage() {
       </div>
 
       {/* View Dialog */}
+      {/* Dialog xem chi tiết review (và giả lập form thêm mới) */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -583,7 +619,7 @@ export default function AdminReviewsPage() {
             <div className="grid gap-2">
               <Label htmlFor="image">Hình ảnh {reviewImages.length > 0 && `(${reviewImages.length})`}</Label>
               {editingReview ? (
-                // Hiển thị hình ảnh từ URL khi xem review
+                // Khi xem chi tiết: Hiển thị các hình ảnh từ URL
                 reviewImages.length > 0 ? (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {reviewImages.map((imgUrl, index) => (
@@ -608,7 +644,7 @@ export default function AdminReviewsPage() {
                   </div>
                 )
               ) : (
-                // Upload area khi tạo mới
+                // Nếu là chế độ thêm mới (đã tắt chức năng này): Khu vực upload ảnh
                 imagePreview ? (
                   <div className="relative w-full h-48 border-2 border-slate-200 rounded-xl overflow-hidden shadow-md">
                     <Image
@@ -665,6 +701,7 @@ export default function AdminReviewsPage() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
+      {/* Dialog xác nhận xóa review */}
       <AlertDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
