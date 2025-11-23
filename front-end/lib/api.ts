@@ -1,6 +1,6 @@
 // API utility functions
 import axios, { AxiosInstance } from 'axios';
-import { setupApiMiddleware } from './apiMiddleware';
+import { setupApiMiddleware } from '../apiMiddleware';
 
 // Lấy API URL từ environment variable hoặc dùng default
 // Trong server-side rendering, có thể cần dùng 127.0.0.1 thay vì localhost
