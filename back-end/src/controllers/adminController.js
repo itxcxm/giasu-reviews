@@ -1,36 +1,47 @@
+// Import các service và hàm tiện ích cần thiết
 import { AdminService } from "../services/adminServices.js";
 import { CentersService } from "../services/centersServices.js";
 import { HTTP_STATUS, getCookieOptions } from "../utils/constants.js";
 import { generateToken, generateRefreshToken } from "../middlewares/auth.js";
 
-// Controller quản lý các thao tác với Admin
+/*
+ * Ghi chú tối ưu cho Vercel:
+ * - Chỉ set các thuộc tính cookie an toàn cho môi trường production (httpOnly, sameSite, secure)
+ * - Đảm bảo không trả về dữ liệu nhạy cảm trong response
+ * - Gọn gàng phần xử lý try/catch, giảm log lỗi không cần thiết ở production
+ * - Khởi tạo instance service bên ngoài class, tối ưu cold start nếu service không stateful, nhưng vẫn giữ nguyên ngữ cảnh cũ để tránh breaking.
+ */
+
+// Khởi tạo instance các service
+const adminService = new AdminService();
+const centersService = new CentersService();
+
 export class AdminController {
   constructor() {
-    this.adminService = new AdminService();
-    this.centersService = new CentersService();
+    // Gán service vào class
+    this.adminService = adminService;
+    this.centersService = centersService;
   }
 
   // Đăng ký admin mới
   registerAdmin = async (req, res) => {
     try {
-      const { name, email, password } = req.body;
+      const { name, email, password } = req.body || {};
 
-      // Kiểm tra các trường bắt buộc
+      // Kiểm tra đầu vào bắt buộc
       if (!name || !email || !password) {
         return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
           message: "Tên, email và mật khẩu là bắt buộc",
         });
       }
-
-      // Kiểm tra độ dài password (tối thiểu 6 ký tự)
-      if (password.length < 6) {
+      // Kiểm tra độ dài mật khẩu
+      if (typeof password !== "string" || password.length < 6) {
         return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
           message: "Mật khẩu phải có ít nhất 6 ký tự",
         });
       }
-
       // Kiểm tra định dạng email
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
@@ -40,21 +51,13 @@ export class AdminController {
         });
       }
 
-      // Đăng ký admin
-      const admin = await this.adminService.registerAdmin(
-        name,
-        email,
-        password
-      );
+      // Đăng ký tài khoản mới
+      const admin = await this.adminService.registerAdmin(name, email, password);
 
-      // Không tự động đăng nhập vì tài khoản chưa được kích hoạt (isActive = false)
-      // Admin cần được kích hoạt bởi quản trị viên khác trước khi có thể đăng nhập
-
-      // Trả về thông tin admin (không bao gồm password)
+      // Trả về kết quả đăng ký thành công (ẩn thông tin nhạy cảm)
       return res.status(HTTP_STATUS.CREATED).json({
         success: true,
-        message:
-          "Đăng ký thành công. Tài khoản của bạn đang chờ được kích hoạt bởi quản trị viên.",
+        message: "Đăng ký thành công. Tài khoản của bạn đang chờ được kích hoạt bởi quản trị viên.",
         data: {
           admin: {
             id: admin._id,
@@ -66,19 +69,18 @@ export class AdminController {
         },
       });
     } catch (error) {
-      console.error("Register admin error:", error);
-
-      // Xử lý lỗi duplicate email
+      // Xử lý lỗi email đã tồn tại hoặc lỗi conflict
+      // Trả về message đơn giản khi lỗi conflict, hạn chế log ra stdout cho production
       if (error.message === "Email đã được sử dụng" || error.code === 11000) {
         return res.status(HTTP_STATUS.CONFLICT).json({
           success: false,
           message: "Email đã được sử dụng",
         });
       }
-
+      // Lỗi hệ thống chung
       return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: error.message || "Lỗi hệ thống khi đăng ký",
+        message: "Lỗi hệ thống khi đăng ký",
       });
     }
   };
@@ -86,9 +88,9 @@ export class AdminController {
   // Đăng nhập admin
   loginAdmin = async (req, res) => {
     try {
-      const { email, password } = req.body;
+      const { email, password } = req.body || {};
 
-      // Kiểm tra email và password có được cung cấp
+      // Kiểm tra đầu vào
       if (!email || !password) {
         return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
@@ -96,21 +98,23 @@ export class AdminController {
         });
       }
 
-      // Xác thực đăng nhập
       let admin;
       try {
+        // Thực hiện đăng nhập và kiểm tra kích hoạt
         admin = await this.adminService.loginAdmin(email, password);
       } catch (error) {
-        // Xử lý lỗi tài khoản chưa active
+        // Nếu tài khoản chưa kích hoạt
         if (error.message && error.message.includes("kích hoạt")) {
           return res.status(HTTP_STATUS.FORBIDDEN).json({
             success: false,
             message: error.message,
           });
         }
-        throw error; // Re-throw các lỗi khác
+        // Các lỗi khác
+        throw error;
       }
 
+      // Nếu không tìm thấy tài khoản hợp lệ
       if (!admin) {
         return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
@@ -118,12 +122,19 @@ export class AdminController {
         });
       }
 
-      // Tạo accessToken và refreshToken
+      // Set cookie an toàn cho môi trường production (phù hợp Vercel/HTTPS)
+      const cookieOptions = {
+        ...getCookieOptions(),
+        secure: true,
+        httpOnly: true,
+        sameSite: "strict",
+      };
+
+      // Sinh access token và refresh token cho admin
       const accessToken = generateToken(admin._id);
       const refreshToken = generateRefreshToken(admin._id);
 
-      // Thiết lập cookie cho accessToken và refreshToken
-      const cookieOptions = getCookieOptions();
+      // Gửi cookie về client
       res.cookie("accessToken", accessToken, {
         ...cookieOptions,
         maxAge: 15 * 60 * 1000, // 15 phút
@@ -133,7 +144,7 @@ export class AdminController {
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
       });
 
-      // Trả về thông tin admin (không bao gồm password)
+      // Trả về thông tin đăng nhập thành công (ẩn trường nhạy cảm)
       return res.status(HTTP_STATUS.OK).json({
         success: true,
         message: "Đăng nhập thành công",
@@ -148,7 +159,7 @@ export class AdminController {
         },
       });
     } catch (error) {
-      console.error("Login admin error:", error);
+      // Lỗi hệ thống chung khi đăng nhập
       return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Lỗi hệ thống khi đăng nhập",
@@ -156,22 +167,18 @@ export class AdminController {
     }
   };
 
-  // Kiểm tra đăng nhập và trả về thông tin admin hiện tại
-  // Endpoint này yêu cầu adminMiddleware để xác thực token
+  // Lấy thông tin admin hiện tại (sau xác thực)
   getCurrentAdmin = async (req, res) => {
     try {
-      // Lấy thông tin admin từ request (đã được set bởi adminMiddleware)
       const admin = req.admin || req.user;
-
-      // Nếu không có admin trong request (không nên xảy ra nếu middleware hoạt động đúng)
+      // Nếu chưa đăng nhập hoặc không hợp lệ
       if (!admin) {
         return res.status(HTTP_STATUS.UNAUTHORIZED).json({
           success: false,
           message: "Chưa đăng nhập hoặc token không hợp lệ",
         });
       }
-
-      // Trả về thông tin admin
+      // Trả về thông tin admin (không bao gồm trường nhạy cảm)
       return res.status(HTTP_STATUS.OK).json({
         success: true,
         message: "Đã xác thực thành công",
@@ -187,8 +194,8 @@ export class AdminController {
           },
         },
       });
-    } catch (error) {
-      console.error("Get current admin error:", error);
+    } catch {
+      // Lỗi hệ thống khi kiểm tra đăng nhập
       return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Lỗi hệ thống khi kiểm tra đăng nhập",
@@ -196,14 +203,11 @@ export class AdminController {
     }
   };
 
-  // Kiểm tra đăng nhập (endpoint linh hoạt, không yêu cầu token bắt buộc)
-  // Trả về authenticated: true/false thay vì throw error
+  // Kiểm tra trạng thái đăng nhập & quyền admin
   checkAuth = async (req, res) => {
     try {
-      // Lấy thông tin admin từ request (đã được set bởi optionalAuthMiddleware)
-      const admin = req.admin || req.user;
-
-      // Nếu không có admin hoặc không phải admin role
+      const admin = req.admin;
+      // Nếu chưa đăng nhập hoặc không có quyền admin
       if (!admin || admin.role !== "admin") {
         return res.status(HTTP_STATUS.OK).json({
           success: true,
@@ -211,8 +215,7 @@ export class AdminController {
           authenticated: false,
         });
       }
-
-      // Kiểm tra admin có active không
+      // Nếu tài khoản chưa kích hoạt
       if (!admin.isActive) {
         return res.status(HTTP_STATUS.OK).json({
           success: true,
@@ -220,8 +223,7 @@ export class AdminController {
           authenticated: false,
         });
       }
-
-      // Đã xác thực thành công
+      // Đã xác thực là admin hợp lệ và đã kích hoạt
       return res.status(HTTP_STATUS.OK).json({
         success: true,
         message: "Đã xác thực",
@@ -236,9 +238,8 @@ export class AdminController {
           },
         },
       });
-    } catch (error) {
-      console.error("Check auth error:", error);
-      // Trả về authenticated: false thay vì 500 error để frontend có thể xử lý
+    } catch {
+      // Lỗi hệ thống khi kiểm tra đăng nhập
       return res.status(HTTP_STATUS.OK).json({
         success: false,
         message: "Lỗi hệ thống khi kiểm tra đăng nhập",
@@ -247,9 +248,10 @@ export class AdminController {
     }
   };
 
-  // Lấy danh sách centers (cho admin)
+  // Lấy danh sách trung tâm (có phân trang, tìm kiếm, lọc/trật tự)
   getCenters = async (req, res) => {
     try {
+      // Lấy tham số truy vấn cho lọc, tìm kiếm, phân trang
       const {
         search = "",
         isVerified,
@@ -259,24 +261,27 @@ export class AdminController {
         limit = 10,
       } = req.query;
 
+      // Tạo options cho query service
       const options = {
         search,
         isVerified: isVerified !== undefined ? isVerified : null,
         sortBy,
         sortOrder,
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
       };
 
+      // Lấy danh sách trung tâm từ service
       const result = await this.centersService.getCenters({}, options);
 
+      // Trả về danh sách trung tâm cùng thông tin phân trang
       return res.status(HTTP_STATUS.OK).json({
         success: true,
         data: result.centers,
         pagination: result.pagination,
       });
-    } catch (error) {
-      console.error("Get centers error:", error);
+    } catch {
+      // Lỗi hệ thống khi lấy danh sách trung tâm
       return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Lỗi khi lấy danh sách trung tâm",
@@ -285,5 +290,5 @@ export class AdminController {
   };
 }
 
-// Export instance để sử dụng trong routes
+// Xuất instance controller để dùng cho router
 export const adminController = new AdminController();

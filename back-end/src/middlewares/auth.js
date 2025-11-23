@@ -6,23 +6,66 @@ import {
   getCookieOptions,
 } from "../utils/constants.js";
 
-// Middleware xác thực Admin
-// Kiểm tra token trong cookie hoặc header Authorization, tự động refresh nếu accessToken hết hạn
-export const authMiddleware = async (req, res, next) => {
-  try {
-    // Lấy token truy cập từ cookie hoặc header Authorization
-    let token = req.cookies.accessToken;
-
-    // Nếu không có token trong cookie, thử lấy từ header
-    if (!token) {
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith("Bearer ")) {
-        token = authHeader.substring(7);
-      }
+/**
+ * Hàm tiện ích: Lấy access token từ cookie hoặc header
+ */
+const getAccessToken = (req) => {
+  let token = req.cookies?.accessToken;
+  if (!token) {
+    // Lấy từ header dạng Bearer
+    const authHeader = req.headers?.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.substring(7);
     }
+  }
+  return token;
+};
 
-    // Nếu không có token -> lỗi chưa xác thực
+/**
+ * Hàm set cookie xác thực (access/refresh token) cho response
+ */
+const setAuthCookies = (res, accessToken, refreshToken) => {
+  // Chú ý: Trên Vercel chỉ chạy HTTPS nên luôn bật secure
+  const cookieOptions = getCookieOptions();
+  res.cookie("accessToken", accessToken, {
+    ...cookieOptions,
+    httpOnly: true,
+    sameSite: "strict",
+    maxAge: 15 * 60 * 1000, // 15 phút
+    secure: true,
+  });
+  res.cookie("refreshToken", refreshToken, {
+    ...cookieOptions,
+    httpOnly: true,
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
+    secure: true,
+  });
+};
+
+/**
+ * Hàm attach (gắn) thông tin admin vào request - để các middleware/controller xử lý
+ */
+const attachAdminToRequest = (req, admin) => {
+  req.admin = admin;
+  req.user = admin;
+  req.userId = admin?._id || null;
+  req.adminId = admin?._id || null;
+};
+
+/**
+ * Middleware chính: Xác thực token/refresh token, attach admin, tự động refresh token nếu cần
+ * Nếu optional = true, chỉ gắn admin hoặc null mà không trả lỗi (cho middleware optional)
+ */
+const handleAuth = async (req, res, next, options = { optional: false }) => {
+  try {
+    const token = getAccessToken(req);
+
     if (!token) {
+      if (options.optional) {
+        attachAdminToRequest(req, null);
+        return next();
+      }
       return res.status(HTTP_STATUS.UNAUTHORIZED).json({
         success: false,
         message: "Token không được cung cấp",
@@ -30,119 +73,107 @@ export const authMiddleware = async (req, res, next) => {
     }
 
     try {
-      // Xác thực accessToken
+      // Giải mã access token
       const decoded = jwt.verify(token, JWT_CONFIG.SECRET);
-
-      // Tìm admin từ DB, loại trừ trường password
       const admin = await Admin.findById(decoded.id).select("-password");
-
-      // Không tìm thấy admin
       if (!admin) {
+        if (options.optional) {
+          attachAdminToRequest(req, null);
+          return next();
+        }
         return res.status(HTTP_STATUS.UNAUTHORIZED).json({
           success: false,
           message: "Token không hợp lệ - Admin không tồn tại",
         });
       }
-
-      // Kiểm tra role phải là admin
+      // Kiểm tra role admin
       if (admin.role !== "admin") {
+        if (options.optional) {
+          attachAdminToRequest(req, null);
+          return next();
+        }
         return res.status(HTTP_STATUS.FORBIDDEN).json({
           success: false,
           message: "Chỉ admin mới có quyền truy cập",
         });
       }
-
-      // Lưu thông tin admin vào request để downstream middleware/controller dùng
-      req.admin = admin;
-      req.user = admin; // Giữ tương thích với code cũ
-      req.userId = admin._id;
-      req.adminId = admin._id;
-      next();
+      attachAdminToRequest(req, admin);
+      return next();
     } catch (accessTokenError) {
-      // Nếu access token hết hạn hoặc không hợp lệ thì check refresh token
+      // Nếu token hết hạn hoặc không hợp lệ, thử xác thực bằng refresh token
       if (
         accessTokenError.name === "TokenExpiredError" ||
         accessTokenError.name === "JsonWebTokenError"
       ) {
-        // Kiểm tra refreshToken từ cookie
-        const refreshToken = req.cookies.refreshToken;
-
+        // Refresh token logic
+        const refreshToken = req.cookies?.refreshToken;
         if (!refreshToken) {
+          if (options.optional) {
+            attachAdminToRequest(req, null);
+            return next();
+          }
           return res.status(HTTP_STATUS.UNAUTHORIZED).json({
             success: false,
             message: "Token đã hết hạn",
           });
         }
-
         try {
-          // Xác thực refreshToken
+          // Giải mã refresh token
           const decodedRefreshToken = jwt.verify(
             refreshToken,
             JWT_CONFIG.REFRESH_SECRET
           );
-          // Tìm admin từ DB với refreshToken
           const admin = await Admin.findById(decodedRefreshToken.id).select(
             "-password"
           );
-
-          if (!admin) {
+          // Kiểm tra tồn tại và quyền admin
+          if (admin && admin.role === "admin") {
+            // Sinh access token & refresh token mới
+            const newAccessToken = jwt.sign(
+              { id: admin._id },
+              JWT_CONFIG.SECRET,
+              { expiresIn: JWT_CONFIG.EXPIRES_IN }
+            );
+            const newRefreshToken = jwt.sign(
+              { id: admin._id },
+              JWT_CONFIG.REFRESH_SECRET,
+              { expiresIn: JWT_CONFIG.REFRESH_EXPIRES_IN }
+            );
+            setAuthCookies(res, newAccessToken, newRefreshToken);
+            attachAdminToRequest(req, admin);
+            return next();
+          } else {
+            if (options.optional) {
+              attachAdminToRequest(req, null);
+              return next();
+            }
             return res.status(HTTP_STATUS.UNAUTHORIZED).json({
               success: false,
               message: "Token không hợp lệ - Admin không tồn tại",
             });
           }
-
-          // Kiểm tra role phải là admin
-          if (admin.role !== "admin") {
-            return res.status(HTTP_STATUS.FORBIDDEN).json({
-              success: false,
-              message: "Chỉ admin mới có quyền truy cập",
-            });
-          }
-
-          // Tạo accessToken và refreshToken mới
-          const accessToken = jwt.sign({ id: admin._id }, JWT_CONFIG.SECRET, {
-            expiresIn: JWT_CONFIG.EXPIRES_IN,
-          });
-          const newRefreshToken = jwt.sign(
-            { id: admin._id },
-            JWT_CONFIG.REFRESH_SECRET,
-            { expiresIn: JWT_CONFIG.REFRESH_EXPIRES_IN }
-          );
-
-          // Thiết lập cookie mới cho accessToken và refreshToken
-          const cookieOptions = getCookieOptions();
-          res.cookie("accessToken", accessToken, {
-            ...cookieOptions,
-            maxAge: 15 * 60 * 1000, // 15 phút
-          });
-          res.cookie("refreshToken", newRefreshToken, {
-            ...cookieOptions,
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
-          });
-
-          // Lưu thông tin admin vào request
-          req.admin = admin;
-          req.user = admin; // Giữ tương thích với code cũ
-          req.userId = admin._id;
-          req.adminId = admin._id;
-
-          next();
         } catch (refreshTokenError) {
-          // Refresh token cũng hết hạn hoặc không hợp lệ
+          if (options.optional) {
+            attachAdminToRequest(req, null);
+            return next();
+          }
           return res.status(HTTP_STATUS.UNAUTHORIZED).json({
             success: false,
             message: "Token đã hết hạn",
           });
         }
       } else {
-        // Nếu lỗi không phải liên quan token hết hạn bác bỏ luôn
+        // Các lỗi khác không liên quan tới token
         throw accessTokenError;
       }
     }
   } catch (error) {
-    // Lỗi hệ thống khi xác thực token
-    console.error("Auth middleware error:", error);
+    // Nếu middleware optional thì không trả lỗi, chỉ gắn null
+    if (options.optional) {
+      attachAdminToRequest(req, null);
+      return next();
+    }
+    console.error(options.errorLogLabel || "Lỗi middleware xác thực:", error);
     return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Lỗi xác thực",
@@ -150,302 +181,43 @@ export const authMiddleware = async (req, res, next) => {
   }
 };
 
-// Middleware kiểm tra quyền admin và xác thực token
-// Tự động xác thực token và kiểm tra role là admin
-export const adminMiddleware = async (req, res, next) => {
-  try {
-    // Lấy token truy cập từ cookie hoặc header Authorization
-    let token = req.cookies.accessToken;
+// Middleware xác thực Admin (có refresh nếu cần)
+// Sử dụng cho các route cần xác thực bắt buộc
+export const authMiddleware = (req, res, next) =>
+  handleAuth(req, res, next, { optional: false, errorLogLabel: "Auth middleware error:" });
 
-    // Nếu không có token trong cookie, thử lấy từ header
-    if (!token) {
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith("Bearer ")) {
-        token = authHeader.substring(7);
-      }
-    }
+// Middleware kiểm tra quyền admin và xác thực token (thường như authMiddleware, nhưng để tách biệt logic nếu sau này bổ sung)
+export const adminMiddleware = (req, res, next) =>
+  handleAuth(req, res, next, { optional: false, errorLogLabel: "Admin middleware error:" });
 
-    // Nếu không có token -> lỗi chưa xác thực
-    if (!token) {
-      return res.status(HTTP_STATUS.UNAUTHORIZED).json({
-        success: false,
-        message: "Token không được cung cấp",
-      });
-    }
-
-    try {
-      // Xác thực accessToken
-      const decoded = jwt.verify(token, JWT_CONFIG.SECRET);
-
-      // Tìm admin từ DB, loại trừ trường password
-      const admin = await Admin.findById(decoded.id).select("-password");
-
-      // Không tìm thấy admin
-      if (!admin) {
-        return res.status(HTTP_STATUS.UNAUTHORIZED).json({
-          success: false,
-          message: "Token không hợp lệ - Admin không tồn tại",
-        });
-      }
-
-      // Kiểm tra role phải là admin
-      if (admin.role !== "admin") {
-        return res.status(HTTP_STATUS.FORBIDDEN).json({
-          success: false,
-          message: "Chỉ admin mới có quyền truy cập",
-        });
-      }
-
-      // Lưu thông tin admin vào request để downstream middleware/controller dùng
-      req.admin = admin;
-      req.user = admin; // Giữ tương thích với code cũ
-      req.userId = admin._id;
-      req.adminId = admin._id;
-      next();
-    } catch (accessTokenError) {
-      // Nếu access token hết hạn hoặc không hợp lệ thì check refresh token
-      if (
-        accessTokenError.name === "TokenExpiredError" ||
-        accessTokenError.name === "JsonWebTokenError"
-      ) {
-        // Kiểm tra refreshToken từ cookie
-        const refreshToken = req.cookies.refreshToken;
-
-        if (!refreshToken) {
-          return res.status(HTTP_STATUS.UNAUTHORIZED).json({
-            success: false,
-            message: "Token đã hết hạn",
-          });
-        }
-
-        try {
-          // Xác thực refreshToken
-          const decodedRefreshToken = jwt.verify(
-            refreshToken,
-            JWT_CONFIG.REFRESH_SECRET
-          );
-          // Tìm admin từ DB với refreshToken
-          const admin = await Admin.findById(decodedRefreshToken.id).select(
-            "-password"
-          );
-
-          if (!admin) {
-            return res.status(HTTP_STATUS.UNAUTHORIZED).json({
-              success: false,
-              message: "Token không hợp lệ - Admin không tồn tại",
-            });
-          }
-
-          // Kiểm tra role phải là admin
-          if (admin.role !== "admin") {
-            return res.status(HTTP_STATUS.FORBIDDEN).json({
-              success: false,
-              message: "Chỉ admin mới có quyền truy cập",
-            });
-          }
-
-          // Tạo accessToken và refreshToken mới
-          const accessToken = jwt.sign({ id: admin._id }, JWT_CONFIG.SECRET, {
-            expiresIn: JWT_CONFIG.EXPIRES_IN,
-          });
-          const newRefreshToken = jwt.sign(
-            { id: admin._id },
-            JWT_CONFIG.REFRESH_SECRET,
-            { expiresIn: JWT_CONFIG.REFRESH_EXPIRES_IN }
-          );
-
-          // Thiết lập cookie mới cho accessToken và refreshToken
-          const cookieOptions = getCookieOptions();
-          res.cookie("accessToken", accessToken, {
-            ...cookieOptions,
-            maxAge: 15 * 60 * 1000, // 15 phút
-          });
-          res.cookie("refreshToken", newRefreshToken, {
-            ...cookieOptions,
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
-          });
-
-          // Lưu thông tin admin vào request
-          req.admin = admin;
-          req.user = admin; // Giữ tương thích với code cũ
-          req.userId = admin._id;
-          req.adminId = admin._id;
-
-          next();
-        } catch (refreshTokenError) {
-          // Refresh token cũng hết hạn hoặc không hợp lệ
-          return res.status(HTTP_STATUS.UNAUTHORIZED).json({
-            success: false,
-            message: "Token đã hết hạn",
-          });
-        }
-      } else {
-        // Nếu lỗi không phải liên quan token hết hạn bác bỏ luôn
-        throw accessTokenError;
-      }
-    }
-  } catch (error) {
-    // Lỗi hệ thống khi xác thực token
-    console.error("Admin middleware error:", error);
-    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
-      success: false,
-      message: "Lỗi xác thực",
-    });
-  }
-};
-
-// Hàm tiện ích tạo JWT token cho adminId
+/**
+ * Hàm tiện ích sinh JWT token cho adminId
+ */
 export const generateToken = (adminId) => {
   return jwt.sign({ id: adminId }, JWT_CONFIG.SECRET, {
     expiresIn: JWT_CONFIG.EXPIRES_IN,
   });
 };
 
-// Hàm tiện ích tạo refresh token cho adminId
+/**
+ * Hàm tiện ích sinh refresh token cho adminId
+ */
 export const generateRefreshToken = (adminId) => {
   return jwt.sign({ id: adminId }, JWT_CONFIG.REFRESH_SECRET, {
     expiresIn: JWT_CONFIG.REFRESH_EXPIRES_IN,
   });
 };
 
-// Middleware xác thực tùy chọn - không throw error nếu không có token
-// Dùng cho các endpoint như check-auth, chỉ cần biết trạng thái đăng nhập
-export const optionalAuthMiddleware = async (req, res, next) => {
-  try {
-    // Lấy token truy cập từ cookie hoặc header Authorization
-    let token = req.cookies.accessToken;
+/**
+ * Middleware xác thực không bắt buộc: chỉ kiểm tra, nếu không hợp lệ thì req.admin = null, không trả lỗi
+ * Thường dùng cho các route muốn biết user có đăng nhập hay chưa
+ */
+export const optionalAuthMiddleware = (req, res, next) =>
+  handleAuth(req, res, next, { optional: true, errorLogLabel: "Optional auth middleware error:" });
 
-    // Nếu không có token trong cookie, thử lấy từ header
-    if (!token) {
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith("Bearer ")) {
-        token = authHeader.substring(7);
-      }
-    }
-
-    // Nếu không có token, tiếp tục mà không set req.admin
-    if (!token) {
-      req.admin = null;
-      req.user = null;
-      req.userId = null;
-      req.adminId = null;
-      return next();
-    }
-
-    try {
-      // Xác thực accessToken
-      const decoded = jwt.verify(token, JWT_CONFIG.SECRET);
-
-      // Tìm admin từ DB, loại trừ trường password
-      const admin = await Admin.findById(decoded.id).select("-password");
-
-      // Nếu tìm thấy admin và role là admin, set vào request
-      if (admin && admin.role === "admin") {
-        req.admin = admin;
-        req.user = admin;
-        req.userId = admin._id;
-        req.adminId = admin._id;
-      } else {
-        req.admin = null;
-        req.user = null;
-        req.userId = null;
-        req.adminId = null;
-      }
-
-      next();
-    } catch (accessTokenError) {
-      // Nếu access token hết hạn hoặc không hợp lệ thì check refresh token
-      if (
-        accessTokenError.name === "TokenExpiredError" ||
-        accessTokenError.name === "JsonWebTokenError"
-      ) {
-        // Kiểm tra refreshToken từ cookie
-        const refreshToken = req.cookies.refreshToken;
-
-        if (!refreshToken) {
-          // Không có refresh token, tiếp tục mà không set req.admin
-          req.admin = null;
-          req.user = null;
-          req.userId = null;
-          req.adminId = null;
-          return next();
-        }
-
-        try {
-          // Xác thực refreshToken
-          const decodedRefreshToken = jwt.verify(
-            refreshToken,
-            JWT_CONFIG.REFRESH_SECRET
-          );
-          // Tìm admin từ DB với refreshToken
-          const admin = await Admin.findById(decodedRefreshToken.id).select(
-            "-password"
-          );
-
-          if (admin && admin.role === "admin") {
-            // Tạo accessToken và refreshToken mới
-            const accessToken = jwt.sign({ id: admin._id }, JWT_CONFIG.SECRET, {
-              expiresIn: JWT_CONFIG.EXPIRES_IN,
-            });
-            const newRefreshToken = jwt.sign(
-              { id: admin._id },
-              JWT_CONFIG.REFRESH_SECRET,
-              { expiresIn: JWT_CONFIG.REFRESH_EXPIRES_IN }
-            );
-
-            // Thiết lập cookie mới cho accessToken và refreshToken
-            const cookieOptions = getCookieOptions();
-            res.cookie("accessToken", accessToken, {
-              ...cookieOptions,
-              maxAge: 15 * 60 * 1000, // 15 phút
-            });
-            res.cookie("refreshToken", newRefreshToken, {
-              ...cookieOptions,
-              maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
-            });
-
-            // Lưu thông tin admin vào request
-            req.admin = admin;
-            req.user = admin;
-            req.userId = admin._id;
-            req.adminId = admin._id;
-          } else {
-            req.admin = null;
-            req.user = null;
-            req.userId = null;
-            req.adminId = null;
-          }
-
-          next();
-        } catch (refreshTokenError) {
-          // Refresh token cũng hết hạn hoặc không hợp lệ, tiếp tục mà không set req.admin
-          req.admin = null;
-          req.user = null;
-          req.userId = null;
-          req.adminId = null;
-          next();
-        }
-      } else {
-        // Lỗi khác, tiếp tục mà không set req.admin
-        req.admin = null;
-        req.user = null;
-        req.userId = null;
-        req.adminId = null;
-        next();
-      }
-    }
-  } catch (error) {
-    // Lỗi hệ thống, tiếp tục mà không set req.admin
-    console.error("Optional auth middleware error:", error);
-    req.admin = null;
-    req.user = null;
-    req.userId = null;
-    req.adminId = null;
-    next();
-  }
-};
-
-// Hàm tiện ích xác thực, giải mã JWT token
+/**
+ * Hàm tiện ích xác thực & giải mã JWT token (access token)
+ */
 export const verifyToken = (token) => {
   try {
     return jwt.verify(token, JWT_CONFIG.SECRET);
