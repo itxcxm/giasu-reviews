@@ -1,6 +1,20 @@
 import { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 /**
+ * Check if we're in browser environment
+ */
+const isBrowser = typeof window !== 'undefined';
+
+/**
+ * Redirect to login page
+ */
+const redirectToLogin = () => {
+  if (isBrowser && !window.location.pathname.includes('/login')) {
+    window.location.href = '/login';
+  }
+};
+
+/**
  * Setup request interceptors for axios instance
  * Handles: token injection, logging, etc.
  */
@@ -42,24 +56,77 @@ export const setupResponseInterceptor = (apiClient: AxiosInstance) => {
       return response;
     },
     (error: AxiosError) => {
+      const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+      const requestUrl = originalRequest?.url || '';
+      const isCheckAuthEndpoint = requestUrl.includes('/check-auth');
+      
       // Xử lý lỗi chung
       if (error.response) {
         // Server trả về response với status code ngoài 2xx
+        const status = error.response.status;
         const responseData = error.response.data as any;
         const message = responseData?.message || error.message || 'Có lỗi xảy ra';
         
-        // Đối với check-auth endpoint, nếu response có authenticated: false
-        // thì không throw error vì đó là trạng thái hợp lệ
-        if (error.config?.url?.includes('/check-auth') && responseData?.authenticated === false) {
-          // Trả về response với authenticated: false thay vì throw error
+        // Xử lý lỗi 401 (Unauthorized) - Token hết hạn hoặc không hợp lệ
+        if (status === 401) {
+          // Đối với check-auth endpoint, không redirect và không throw error
+          // Vì đó là trạng thái hợp lệ khi chưa đăng nhập
+          if (isCheckAuthEndpoint) {
+            // Trả về response với authenticated: false
+            return Promise.resolve({
+              ...error.response,
+              data: {
+                success: true,
+                authenticated: false,
+                message: 'Chưa đăng nhập',
+              },
+            } as any);
+          }
+          
+          // Đối với các endpoint khác, redirect về login
+          if (isBrowser && !window.location.pathname.includes('/login')) {
+            redirectToLogin();
+          }
+          
+          return Promise.reject(new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'));
+        }
+        
+        // Xử lý lỗi 403 (Forbidden) - Không có quyền truy cập
+        if (status === 403) {
+          if (isCheckAuthEndpoint) {
+            return Promise.resolve({
+              ...error.response,
+              data: {
+                success: true,
+                authenticated: false,
+                message: 'Không có quyền truy cập',
+              },
+            } as any);
+          }
+          
+          if (isBrowser && !window.location.pathname.includes('/login')) {
+            redirectToLogin();
+          }
+          
+          return Promise.reject(new Error('Bạn không có quyền truy cập tài nguyên này.'));
+        }
+        
+        // Đối với check-auth endpoint với các status code khác
+        // Nếu response có authenticated: false thì không throw error
+        if (isCheckAuthEndpoint && responseData?.authenticated === false) {
           return Promise.resolve({
             ...error.response,
-            data: responseData,
+            data: {
+              success: true,
+              authenticated: false,
+              message: responseData?.message || 'Chưa đăng nhập',
+              ...responseData,
+            },
           } as any);
         }
         
         // Xử lý lỗi 404 đặc biệt
-        if (error.response.status === 404) {
+        if (status === 404) {
           return Promise.reject(new Error('Không tìm thấy trung tâm'));
         }
         
@@ -68,8 +135,7 @@ export const setupResponseInterceptor = (apiClient: AxiosInstance) => {
         // Request đã được gửi nhưng không nhận được response
         // Kiểm tra xem có phải lỗi kết nối không
         const errorCode = (error as any).code;
-        const requestUrl = error.config?.url || '';
-        const baseURL = error.config?.baseURL || '';
+        const baseURL = originalRequest?.baseURL || '';
         
         console.error('API Request Error:', {
           code: errorCode,
@@ -77,6 +143,21 @@ export const setupResponseInterceptor = (apiClient: AxiosInstance) => {
           baseURL: baseURL,
           url: requestUrl,
         });
+        
+        // Đối với check-auth endpoint, nếu có lỗi kết nối
+        // Trả về authenticated: false thay vì throw error
+        if (isCheckAuthEndpoint) {
+          return Promise.resolve({
+            status: 200,
+            statusText: 'OK',
+            data: {
+              success: false,
+              authenticated: false,
+              message: 'Không thể kết nối đến server',
+            },
+            config: originalRequest,
+          } as any);
+        }
         
         // Nếu API_BASE_URL rỗng trong production, đây là lỗi cấu hình
         if (!baseURL && process.env.NODE_ENV === 'production') {

@@ -257,26 +257,16 @@ export const adminAPI = {
 
   // Kiểm tra đăng nhập
   // Endpoint này luôn trả về success: true, authenticated: true/false
-  // Không throw error ngay cả khi chưa đăng nhập
+  // Middleware đã xử lý tất cả các trường hợp lỗi, không throw error
   async checkAuth(): Promise<{ success: boolean; authenticated: boolean; message: string; data?: { admin: any } }> {
-    try {
-      const response = await apiClient.get('/api/admin/check-auth');
-      // Đảm bảo response luôn có authenticated field
-      return {
-        success: response.data?.success ?? true,
-        authenticated: response.data?.authenticated ?? false,
-        message: response.data?.message || '',
-        data: response.data?.data,
-      };
-    } catch (error: any) {
-      // Nếu có lỗi kết nối, trả về authenticated: false thay vì throw error
-      console.error('Check auth error:', error);
-      return {
-        success: false,
-        authenticated: false,
-        message: error?.message || 'Không thể kiểm tra đăng nhập',
-      };
-    }
+    const response = await apiClient.get('/api/admin/check-auth');
+    // Middleware đảm bảo response luôn có authenticated field
+    return {
+      success: response.data?.success ?? true,
+      authenticated: response.data?.authenticated ?? false,
+      message: response.data?.message || '',
+      data: response.data?.data,
+    };
   },
 };
 
