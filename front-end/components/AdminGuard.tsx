@@ -25,6 +25,8 @@ export function AdminGuard({ children }: AdminGuardProps) {
           setError(null);
         } else {
           // Không đăng nhập hoặc không có quyền
+          // Clear frontend cookie flag
+          document.cookie = 'isAuthenticated=; path=/; max-age=0';
           setIsAuthenticated(false);
           setError(null);
           // Redirect to login page
@@ -47,7 +49,8 @@ export function AdminGuard({ children }: AdminGuardProps) {
           // Không redirect ngay, để user thấy thông báo lỗi
           setIsAuthenticated(false);
         } else {
-          // Lỗi khác, redirect về login
+          // Lỗi khác, clear cookie và redirect về login
+          document.cookie = 'isAuthenticated=; path=/; max-age=0';
           setIsAuthenticated(false);
           router.push('/login');
         }

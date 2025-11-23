@@ -39,10 +39,15 @@ export default function AdminLoginPage() {
       const response = await Promise.race([loginPromise, timeoutPromise]) as any;
 
       if (response && response.success && response.data) {
-        // Sau khi đăng nhập thành công, backend sẽ set token vào httpOnly cookie.
-        // Middleware sẽ tự động redirect về /admin nếu có token.
-        // Sử dụng window.location.href để đảm bảo cookies được gửi kèm request mới
+        // Sau khi đăng nhập thành công, backend sẽ set token vào httpOnly cookie trên backend domain.
+        // Để middleware có thể kiểm tra, chúng ta cũng set một cookie trên frontend domain.
+        // Cookie này chỉ là flag, token thực sự vẫn ở backend domain (httpOnly, secure).
+        const isProduction = window.location.protocol === 'https:';
+        const secureFlag = isProduction ? '; Secure' : '';
+        document.cookie = `isAuthenticated=true; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax${secureFlag}`;
+        
         console.log('Login successful, redirecting to admin');
+        // Sử dụng window.location.href để đảm bảo cookies được gửi kèm request mới
         window.location.href = '/admin';
       } else {
         setError(response?.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
