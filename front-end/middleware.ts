@@ -1,48 +1,78 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { jwtVerify } from 'jose';
 
 /**
  * Middleware tối ưu cho Vercel Edge Runtime
  * Chạy trên Edge để tối ưu performance
  * 
- * Xác thực JWT token trong cookies trước khi cho phép truy cập các route protected.
- * Nếu không đọc được cookies (cross-domain), sẽ để AdminGuard xử lý ở client-side.
+ * Xác thực bằng cách call API /api/admin/check-auth của backend.
+ * Nếu API trả về authenticated: true thì cho phép truy cập.
  */
 
-// JWT Secret để verify token - phải giống với backend
-const isProduction = process.env.NODE_ENV === 'production';
-const JWT_SECRET = process.env.JWT_SECRET || (isProduction ? null : 'your-super-secret-jwt-key-change-this-in-production');
-
-// Cảnh báo nếu thiếu JWT_SECRET trong production
-if (isProduction && !JWT_SECRET) {
-  console.warn(
-    '⚠️ CẢNH BÁO: JWT_SECRET chưa được thiết lập ở môi trường production. ' +
-    'Vui lòng bổ sung JWT_SECRET vào biến môi trường của Vercel để giống với backend.'
-  );
-}
-
-// Mã hóa secret dùng cho jwtVerify
-const getSecret = () => {
-  if (!JWT_SECRET) return null;
-  return new TextEncoder().encode(JWT_SECRET);
+// Lấy API URL từ environment variable
+const getApiBaseUrl = (): string => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const publicApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  
+  if (publicApiUrl) {
+    if (publicApiUrl.startsWith('http://') || publicApiUrl.startsWith('https://')) {
+      return publicApiUrl;
+    }
+    if (isProduction) {
+      return `https://${publicApiUrl}`;
+    }
+    return `http://${publicApiUrl}`;
+  }
+  
+  if (isProduction) {
+    return '';
+  }
+  
+  return 'http://localhost:5000';
 };
 
+const API_BASE_URL = getApiBaseUrl();
+
 /**
- * Verify JWT token
+ * Call API check-auth của backend để verify authentication
  */
-async function verifyToken(token: string): Promise<boolean> {
+async function checkAuthFromAPI(request: NextRequest): Promise<boolean> {
   try {
-    const secret = getSecret();
-    if (!secret) {
-      // Không có secret, không thể verify
+    // Lấy cookies từ request
+    const cookies = request.cookies.getAll();
+    const cookieHeader = cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
+    
+    // Lấy origin từ request để gửi trong headers (cần cho CORS)
+    const origin = request.headers.get('origin') || request.nextUrl.origin;
+    
+    // Gọi API check-auth
+    const apiUrl = `${API_BASE_URL}/api/admin/check-auth`;
+    
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Cookie': cookieHeader,
+        'Content-Type': 'application/json',
+        'Origin': origin,
+        'Referer': request.nextUrl.toString(),
+      },
+      // Không dùng cache
+      cache: 'no-store',
+    });
+    
+    if (!response.ok) {
+      // Nếu response không OK, có thể là lỗi server hoặc chưa đăng nhập
       return false;
     }
     
-    await jwtVerify(token, secret);
-    return true;
+    const data = await response.json();
+    
+    // Kiểm tra response có authenticated: true không
+    return data?.success === true && data?.authenticated === true;
   } catch (error) {
-    // Token không hợp lệ, hết hạn, hoặc lỗi khác
+    // Lỗi khi call API (network error, timeout, etc.)
+    // Trong trường hợp này, cho phép truy cập và để client-side xử lý
+    console.error('Check auth API error:', error);
     return false;
   }
 }
@@ -50,69 +80,37 @@ async function verifyToken(token: string): Promise<boolean> {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // Lấy accessToken và refreshToken từ cookies (Edge runtime compatible)
-  // LƯU Ý: Trong cross-domain, có thể không đọc được cookies
-  const accessToken = request.cookies.get('accessToken')?.value;
-  const refreshToken = request.cookies.get('refreshToken')?.value;
-  const hasAuthToken = !!(accessToken || refreshToken);
+  // Kiểm tra xem có API URL không
+  if (!API_BASE_URL) {
+    // Không có API URL, cho phép truy cập (sẽ xử lý ở client-side)
+    return NextResponse.next();
+  }
 
   // Xử lý route /login
   if (pathname === '/login') {
-    // Trong production cross-domain, cookies có thể không đọc được
-    // Nếu có accessToken và có thể verify được, redirect về admin
-    // Nếu không verify được, vẫn cho phép truy cập login page (client-side sẽ xử lý)
-    const secret = getSecret();
-    if (accessToken && secret) {
-      try {
-        const isValid = await verifyToken(accessToken);
-        if (isValid) {
-          // Token hợp lệ, redirect về admin
-          return NextResponse.redirect(new URL('/admin', request.url));
-        }
-      } catch (error) {
-        // Token không hợp lệ hoặc lỗi verify, cho phép truy cập login page
-        // Client-side sẽ xử lý check auth
-      }
+    // Call API check-auth để kiểm tra đã đăng nhập chưa
+    const isAuthenticated = await checkAuthFromAPI(request);
+    
+    if (isAuthenticated) {
+      // Đã đăng nhập, redirect về admin
+      return NextResponse.redirect(new URL('/admin', request.url));
     }
-    // Không có token, không có secret, hoặc token không hợp lệ: cho phép truy cập login page
+    
+    // Chưa đăng nhập, cho phép truy cập login page
     return NextResponse.next();
   }
 
   // Xử lý route /admin (protected route)
   if (pathname.startsWith('/admin')) {
-    // Kiểm tra xem có token không
-    if (!hasAuthToken) {
-      // Không có token, redirect về login
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('redirect', pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    // Có token, verify JWT
-    if (accessToken) {
-      const isValid = await verifyToken(accessToken);
-      if (isValid) {
-        // Token hợp lệ, cho phép truy cập
-        return NextResponse.next();
-      }
-      // Token không hợp lệ hoặc hết hạn
-      // Nếu có refreshToken, vẫn cho phép (AdminGuard sẽ xử lý refresh)
-      if (refreshToken) {
-        return NextResponse.next();
-      }
-      // Không có refreshToken, redirect về login
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('redirect', pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    // Chỉ có refreshToken, không có accessToken
-    // Cho phép truy cập, AdminGuard sẽ xử lý refresh token
-    if (refreshToken) {
+    // Call API check-auth để verify authentication
+    const isAuthenticated = await checkAuthFromAPI(request);
+    
+    if (isAuthenticated) {
+      // Đã xác thực, cho phép truy cập
       return NextResponse.next();
     }
-
-    // Không có token nào, redirect về login
+    
+    // Chưa xác thực, redirect về login
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
