@@ -1,8 +1,14 @@
 // Import các service và hàm tiện ích cần thiết
 import { AdminService } from "../services/adminServices.js";
 import { CentersService } from "../services/centersServices.js";
-import { HTTP_STATUS, getCookieOptions } from "../utils/constants.js";
+import {
+  HTTP_STATUS,
+  getCookieOptions,
+  JWT_CONFIG,
+} from "../utils/constants.js";
 import { generateToken, generateRefreshToken } from "../middlewares/auth.js";
+import jwt from "jsonwebtoken";
+import Admin from "../models/Admin.js";
 
 /*
  * Ghi chú tối ưu cho Vercel:
@@ -228,18 +234,108 @@ export class AdminController {
   };
 
   // Kiểm tra trạng thái đăng nhập & quyền admin
+  // Tự verify token trong controller, không dùng middleware
+  // Xử lý cả accessToken và refreshToken
   checkAuth = async (req, res) => {
     try {
-      const admin = req.admin;
-      // Nếu chưa đăng nhập hoặc không có quyền admin
-      if (!admin || admin.role !== "admin") {
+      // Lấy accessToken từ cookies hoặc header
+      let accessToken = req.cookies?.accessToken;
+      if (!accessToken) {
+        const authHeader = req.headers?.authorization;
+        if (authHeader && authHeader.startsWith("Bearer ")) {
+          accessToken = authHeader.substring(7);
+        }
+      }
+
+      // Lấy refreshToken từ cookies
+      const refreshToken = req.cookies?.refreshToken;
+
+      // Nếu không có cả accessToken và refreshToken
+      if (!accessToken && !refreshToken) {
         return res.status(HTTP_STATUS.OK).json({
           success: true,
-          message: "Chưa đăng nhập hoặc không có quyền truy cập",
+          message: "Chưa đăng nhập",
           authenticated: false,
         });
       }
-      // Nếu tài khoản chưa kích hoạt
+
+      // Verify tokens và lấy admin
+      let decoded;
+      let admin = null;
+      let shouldRefreshTokens = false;
+
+      // Ưu tiên verify accessToken trước
+      if (accessToken) {
+        try {
+          decoded = jwt.verify(accessToken, JWT_CONFIG.SECRET);
+          // AccessToken hợp lệ, tìm admin
+          admin = await Admin.findById(decoded.id).select("-password");
+        } catch (accessTokenError) {
+          // AccessToken hết hạn hoặc không hợp lệ
+          if (
+            accessTokenError.name === "TokenExpiredError" ||
+            accessTokenError.name === "JsonWebTokenError"
+          ) {
+            // Thử dùng refreshToken
+            if (refreshToken) {
+              try {
+                decoded = jwt.verify(refreshToken, JWT_CONFIG.REFRESH_SECRET);
+                admin = await Admin.findById(decoded.id).select("-password");
+                shouldRefreshTokens = true; // Cần tạo lại tokens mới
+              } catch (refreshTokenError) {
+                // RefreshToken cũng không hợp lệ
+                return res.status(HTTP_STATUS.OK).json({
+                  success: true,
+                  message: "Token không hợp lệ",
+                  authenticated: false,
+                });
+              }
+            } else {
+              // Không có refreshToken
+              return res.status(HTTP_STATUS.OK).json({
+                success: true,
+                message: "Token đã hết hạn",
+                authenticated: false,
+              });
+            }
+          } else {
+            throw accessTokenError;
+          }
+        }
+      } else if (refreshToken) {
+        // Chỉ có refreshToken, không có accessToken
+        try {
+          decoded = jwt.verify(refreshToken, JWT_CONFIG.REFRESH_SECRET);
+          admin = await Admin.findById(decoded.id).select("-password");
+          shouldRefreshTokens = true; // Cần tạo lại tokens mới
+        } catch (refreshTokenError) {
+          return res.status(HTTP_STATUS.OK).json({
+            success: true,
+            message: "Token không hợp lệ",
+            authenticated: false,
+          });
+        }
+      }
+
+      // Nếu không tìm thấy admin
+      if (!admin) {
+        return res.status(HTTP_STATUS.OK).json({
+          success: true,
+          message: "Token không hợp lệ - Admin không tồn tại",
+          authenticated: false,
+        });
+      }
+
+      // Kiểm tra role admin
+      if (admin.role !== "admin") {
+        return res.status(HTTP_STATUS.OK).json({
+          success: true,
+          message: "Chỉ admin mới có quyền truy cập",
+          authenticated: false,
+        });
+      }
+
+      // Kiểm tra tài khoản đã kích hoạt chưa
       if (!admin.isActive) {
         return res.status(HTTP_STATUS.OK).json({
           success: true,
@@ -247,6 +343,23 @@ export class AdminController {
           authenticated: false,
         });
       }
+
+      // Nếu cần refresh tokens (khi accessToken hết hạn nhưng refreshToken hợp lệ)
+      if (shouldRefreshTokens) {
+        const newAccessToken = generateToken(admin._id);
+        const newRefreshToken = generateRefreshToken(admin._id);
+        const cookieOptions = getCookieOptions();
+
+        res.cookie("accessToken", newAccessToken, {
+          ...cookieOptions,
+          maxAge: 15 * 60 * 1000, // 15 phút
+        });
+        res.cookie("refreshToken", newRefreshToken, {
+          ...cookieOptions,
+          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
+        });
+      }
+
       // Đã xác thực là admin hợp lệ và đã kích hoạt
       return res.status(HTTP_STATUS.OK).json({
         success: true,
@@ -262,8 +375,9 @@ export class AdminController {
           },
         },
       });
-    } catch {
+    } catch (error) {
       // Lỗi hệ thống khi kiểm tra đăng nhập
+      console.error("Check auth error:", error);
       return res.status(HTTP_STATUS.OK).json({
         success: false,
         message: "Lỗi hệ thống khi kiểm tra đăng nhập",
