@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,10 +11,11 @@ import { Lock, Mail, ShieldCheck } from 'lucide-react';
 import { adminAPI } from '@/lib/api';
 
 /**
- * Token ở trong cookie!
- * - Luôn ưu tiên xác thực thông qua cookie, không cần localStorage.
- * - Gửi request checkAuth: token sẽ được gửi kèm theo cookie (httpOnly backend set).
- * - Nếu cookie có token hợp lệ, sẽ chuyển vào /admin, nếu sai hoặc hết hạn thì hiển thị login form.
+ * Logic đăng nhập phù hợp với middleware:
+ * - Middleware đã xử lý redirect: nếu có token ở /login → redirect /admin
+ * - Nếu không có token → hiển thị form đăng nhập
+ * - Không cần kiểm tra token ở client-side vì middleware đã xử lý
+ * - Sau khi đăng nhập thành công, backend sẽ set cookie và redirect về /admin
  */
 
 export default function AdminLoginPage() {
@@ -22,49 +23,7 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
   const router = useRouter();
-
-  useEffect(() => {
-    let ignore = false;
-
-    const checkAuthCookie = async () => {
-      try {
-        const response = await adminAPI.checkAuth();
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[LoginPage cookie] checkAuth (cookie):', response);
-        }
-        if (!ignore) {
-          if (response && typeof response === 'object' && response.success && response.authenticated) {
-            router.replace('/admin');
-            return;
-          } else {
-            setCheckingAuth(false);
-            return;
-          }
-        }
-      } catch (err: any) {
-        if (!ignore) {
-          console.error('[LoginPage] checkAuth (cookie) error:', err);
-          setCheckingAuth(false);
-        }
-      }
-    };
-
-    const timeoutId = setTimeout(() => {
-      if (!ignore) {
-        console.warn('Check auth timeout, showing login form');
-        setCheckingAuth(false);
-      }
-    }, 5000);
-
-    checkAuthCookie();
-
-    return () => {
-      ignore = true;
-      clearTimeout(timeoutId);
-    };
-  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,9 +40,8 @@ export default function AdminLoginPage() {
 
       if (response && response.success && response.data) {
         // Sau khi đăng nhập thành công, backend sẽ set token vào httpOnly cookie.
-        // Không cần thao tác localStorage, không cần lấy token gì cả.
-
-        // Đăng nhập thành công, chuyển đến trang admin
+        // Middleware sẽ tự động redirect về /admin nếu có token.
+        // Sử dụng window.location.href để đảm bảo cookies được gửi kèm request mới
         console.log('Login successful, redirecting to admin');
         window.location.href = '/admin';
       } else {
@@ -114,17 +72,6 @@ export default function AdminLoginPage() {
       setLoading(false);
     }
   };
-
-  if (checkingAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-          <p className="text-slate-600">Đang kiểm tra đăng nhập...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-4">

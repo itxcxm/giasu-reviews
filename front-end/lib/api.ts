@@ -283,6 +283,7 @@ export const adminAPI = {
 
   // Kiểm tra đăng nhập
   // Endpoint này luôn trả về success: true, authenticated: true/false
+  // Lưu ý: Middleware đã xử lý redirect tự động, hàm này chỉ dùng khi cần kiểm tra auth ở client-side
   async checkAuth(): Promise<{ success: boolean; authenticated: boolean; message: string; data?: { admin: any } }> {
     try {
       const response = await apiClient.get('/api/admin/check-auth');
