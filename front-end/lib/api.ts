@@ -1,6 +1,5 @@
 // API utility functions
 import axios, { AxiosInstance } from 'axios';
-import { setupApiMiddleware } from '../apiMiddleware';
 
 // Lấy API URL từ environment variable hoặc dùng default
 // Trong server-side rendering, có thể cần dùng 127.0.0.1 thay vì localhost
@@ -58,9 +57,6 @@ const apiClient: AxiosInstance = axios.create({
   },
   timeout: 10000, // 10 giây timeout
 });
-
-// Setup middleware (request & response interceptors)
-setupApiMiddleware(apiClient);
 
 // Types
 export interface Center {
@@ -256,17 +252,23 @@ export const adminAPI = {
   },
 
   // Kiểm tra đăng nhập
-  // Endpoint này luôn trả về success: true, authenticated: true/false
-  // Middleware đã xử lý tất cả các trường hợp lỗi, không throw error
   async checkAuth(): Promise<{ success: boolean; authenticated: boolean; message: string; data?: { admin: any } }> {
-    const response = await apiClient.get('/api/admin/check-auth');
-    // Middleware đảm bảo response luôn có authenticated field
-    return {
-      success: response.data?.success ?? true,
-      authenticated: response.data?.authenticated ?? false,
-      message: response.data?.message || '',
-      data: response.data?.data,
-    };
+    try {
+      const response = await apiClient.get('/api/admin/check-auth');
+      return {
+        success: response.data?.success ?? true,
+        authenticated: response.data?.authenticated ?? false,
+        message: response.data?.message || '',
+        data: response.data?.data,
+      };
+    } catch (error: any) {
+      // Nếu có lỗi, trả về authenticated: false
+      return {
+        success: false,
+        authenticated: false,
+        message: error?.response?.data?.message || error?.message || 'Không thể kiểm tra đăng nhập',
+      };
+    }
   },
 };
 
