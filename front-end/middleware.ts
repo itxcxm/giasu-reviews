@@ -45,11 +45,3 @@ export const config = {
   ],
 };
 
-// Cấu hình matcher để middleware chỉ chạy cho các routes cụ thể
-export const config = {
-  matcher: [
-    '/admin/:path*',
-    '/login',
-  ],
-};
-

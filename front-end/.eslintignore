@@ -1,0 +1,6 @@
+# Ignore config files that don't need linting
+next.config.js
+next-env.d.ts
+*.config.js
+*.config.ts
+
