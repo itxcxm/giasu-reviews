@@ -70,13 +70,13 @@ export default function AdminLoginPage() {
       }
     };
     
-    // Thêm timeout để tránh bị stuck quá lâu
+    // Thêm timeout để tránh bị stuck quá lâu (giảm xuống 5 giây cho nhanh hơn)
     const timeoutId = setTimeout(() => {
       if (!ignore) {
         console.warn('Check auth timeout, showing login form');
         setCheckingAuth(false);
       }
-    }, 10000); // 10 giây timeout
+    }, 5000); // 5 giây timeout
     
     checkAuth();
 
@@ -93,24 +93,46 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      // adminAPI.login cũng cần credentials: "include" trong fetch!
-      const response = await adminAPI.login(email, password);
+      // Thêm timeout cho login request
+      const loginPromise = adminAPI.login(email, password);
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout. Vui lòng thử lại.')), 15000);
+      });
 
-      if (response.success && response.data) {
+      const response = await Promise.race([loginPromise, timeoutPromise]) as any;
+
+      if (response && response.success && response.data) {
         // Đăng nhập thành công, chuyển đến trang admin
-        router.replace('/admin');
+        console.log('Login successful, redirecting to admin');
+        // Sử dụng window.location để đảm bảo redirect hoạt động
+        window.location.href = '/admin';
       } else {
-        setError(response.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
+        setError(response?.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
         setLoading(false);
       }
     } catch (err: any) {
+      // Log lỗi chi tiết
+      console.error('Login error:', {
+        message: err?.message,
+        response: err?.response?.data,
+        status: err?.response?.status,
+      });
+
       // Khi Vercel gặp lỗi cookie sẽ vào đây; cần thông báo rõ ràng
       let errorMessage = 'Đã xảy ra lỗi. Vui lòng thử lại.';
       if (err?.response?.data?.message) {
         errorMessage = err.response.data.message;
-      } else if (err.message) {
+      } else if (err?.message) {
         errorMessage = err.message;
       }
+      
+      // Kiểm tra nếu là lỗi timeout hoặc network
+      if (err?.message?.includes('timeout') || err?.code === 'ECONNABORTED') {
+        errorMessage = 'Kết nối quá lâu. Vui lòng kiểm tra kết nối mạng và thử lại.';
+      } else if (err?.message?.includes('Network Error') || !err?.response) {
+        errorMessage = 'Không thể kết nối đến server. Vui lòng kiểm tra cấu hình API URL.';
+      }
+      
       setError(errorMessage);
       setLoading(false);
     }
