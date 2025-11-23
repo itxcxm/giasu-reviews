@@ -34,24 +34,55 @@ export default function AdminLoginPage() {
       try {
         // adminAPI.checkAuth cần bắt buộc gửi credentials!
         const response = await adminAPI.checkAuth();
+        
+        // Debug log (chỉ trong development)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Check auth response:', response);
+        }
+        
         if (!ignore) {
-          if (response.success && response.authenticated) {
-            router.replace('/admin');
+          // Kiểm tra response có đúng format không
+          if (response && typeof response === 'object') {
+            if (response.success && response.authenticated) {
+              // Đã đăng nhập, redirect về admin
+              router.replace('/admin');
+              return;
+            } else {
+              // Chưa đăng nhập hoặc không hợp lệ, hiển thị form
+              setCheckingAuth(false);
+              return;
+            }
           } else {
+            // Response không đúng format
+            console.error('Invalid check auth response:', response);
             setCheckingAuth(false);
+            return;
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         if (!ignore) {
+          // Log lỗi để debug
+          console.error('Check auth error:', err);
+          
           // Lỗi, nhưng vẫn hiển thị form login
           setCheckingAuth(false);
         }
       }
     };
+    
+    // Thêm timeout để tránh bị stuck quá lâu
+    const timeoutId = setTimeout(() => {
+      if (!ignore) {
+        console.warn('Check auth timeout, showing login form');
+        setCheckingAuth(false);
+      }
+    }, 10000); // 10 giây timeout
+    
     checkAuth();
 
     return () => {
       ignore = true;
+      clearTimeout(timeoutId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Không đưa router vào dependency, tránh re-fetch không cần thiết do route change của next/navigation

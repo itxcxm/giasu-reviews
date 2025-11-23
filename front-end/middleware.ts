@@ -58,15 +58,23 @@ export async function middleware(request: NextRequest) {
 
   // Xử lý route /login
   if (pathname === '/login') {
-    // Nếu đã có accessToken và có thể verify được, redirect về admin
-    if (accessToken) {
-      const isValid = await verifyToken(accessToken);
-      if (isValid) {
-        // Token hợp lệ, redirect về admin
-        return NextResponse.redirect(new URL('/admin', request.url));
+    // Trong production cross-domain, cookies có thể không đọc được
+    // Nếu có accessToken và có thể verify được, redirect về admin
+    // Nếu không verify được, vẫn cho phép truy cập login page (client-side sẽ xử lý)
+    const secret = getSecret();
+    if (accessToken && secret) {
+      try {
+        const isValid = await verifyToken(accessToken);
+        if (isValid) {
+          // Token hợp lệ, redirect về admin
+          return NextResponse.redirect(new URL('/admin', request.url));
+        }
+      } catch (error) {
+        // Token không hợp lệ hoặc lỗi verify, cho phép truy cập login page
+        // Client-side sẽ xử lý check auth
       }
     }
-    // Không có token hoặc token không hợp lệ: cho phép truy cập login page
+    // Không có token, không có secret, hoặc token không hợp lệ: cho phép truy cập login page
     return NextResponse.next();
   }
 

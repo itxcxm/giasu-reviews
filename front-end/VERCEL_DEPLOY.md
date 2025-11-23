@@ -21,7 +21,7 @@ Trong Vercel Dashboard, bạn **PHẢI** set các environment variables sau:
    - **Name**: `NEXT_PUBLIC_API_URL`
    - **Value**: `https://your-backend-api.com`
    - **Environment**: Chọn tất cả (Production, Preview, Development)
-3. Click "Save"
+3. Click "Save"đđ
 4. **Redeploy** project để áp dụng
 
 ### 2. Các Environment Variables Khác (Tùy chọn)

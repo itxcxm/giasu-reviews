@@ -286,6 +286,26 @@ export const adminAPI = {
   async checkAuth(): Promise<{ success: boolean; authenticated: boolean; message: string; data?: { admin: any } }> {
     try {
       const response = await apiClient.get('/api/admin/check-auth');
+      
+      // Debug log (chỉ trong development)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Check auth API response:', {
+          status: response.status,
+          data: response.data,
+          headers: response.headers,
+        });
+      }
+      
+      // Đảm bảo response có data
+      if (!response || !response.data) {
+        console.error('Invalid API response:', response);
+        return {
+          success: false,
+          authenticated: false,
+          message: 'Response không hợp lệ từ server',
+        };
+      }
+      
       return {
         success: response.data?.success ?? true,
         authenticated: response.data?.authenticated ?? false,
@@ -293,6 +313,14 @@ export const adminAPI = {
         data: response.data?.data,
       };
     } catch (error: any) {
+      // Log lỗi chi tiết
+      console.error('Check auth API error:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+        code: error?.code,
+      });
+      
       // Nếu có lỗi, trả về authenticated: false
       return {
         success: false,
