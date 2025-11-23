@@ -28,12 +28,18 @@ export const getCookieOptions = () => {
   // Nếu CLIENT_URL chứa https:// hoặc có nhiều URLs (phân cách bởi dấu phẩy), có thể là cross-domain
   const hasClientUrl =
     process.env.CLIENT_URL && process.env.CLIENT_URL.trim() !== "";
+
+  // Trên Vercel, frontend và backend thường ở domain khác nhau (cross-domain)
+  // Nếu có CLIENT_URL trong production, giả định là cross-domain
   const isCrossDomain = isProduction && hasClientUrl;
 
   // Khi sameSite: "none", BẮT BUỘC phải có secure: true
   // Trong production với cross-domain, luôn dùng "none" để cookie có thể được gửi cross-domain
+  // "lax" cho same-site hoặc development
   const sameSiteValue = isCrossDomain ? "none" : isProduction ? "lax" : "lax";
-  const secureValue = isProduction || sameSiteValue === "none"; // Secure bắt buộc khi sameSite: "none" hoặc production
+
+  // Secure bắt buộc khi sameSite: "none" hoặc production (Vercel luôn dùng HTTPS)
+  const secureValue = isProduction || sameSiteValue === "none";
 
   return {
     httpOnly: true,

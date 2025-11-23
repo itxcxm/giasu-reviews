@@ -52,12 +52,17 @@ export class AdminController {
       }
 
       // Đăng ký tài khoản mới
-      const admin = await this.adminService.registerAdmin(name, email, password);
+      const admin = await this.adminService.registerAdmin(
+        name,
+        email,
+        password
+      );
 
       // Trả về kết quả đăng ký thành công (ẩn thông tin nhạy cảm)
       return res.status(HTTP_STATUS.CREATED).json({
         success: true,
-        message: "Đăng ký thành công. Tài khoản của bạn đang chờ được kích hoạt bởi quản trị viên.",
+        message:
+          "Đăng ký thành công. Tài khoản của bạn đang chờ được kích hoạt bởi quản trị viên.",
         data: {
           admin: {
             id: admin._id,
@@ -123,12 +128,8 @@ export class AdminController {
       }
 
       // Set cookie an toàn cho môi trường production (phù hợp Vercel/HTTPS)
-      const cookieOptions = {
-        ...getCookieOptions(),
-        secure: true,
-        httpOnly: true,
-        sameSite: "strict",
-      };
+      // Sử dụng getCookieOptions() để tự động xử lý cross-domain (sameSite: "none" khi cross-domain)
+      const cookieOptions = getCookieOptions();
 
       // Sinh access token và refresh token cho admin
       const accessToken = generateToken(admin._id);

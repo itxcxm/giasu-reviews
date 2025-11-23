@@ -23,23 +23,18 @@ const getAccessToken = (req) => {
 
 /**
  * Hàm set cookie xác thực (access/refresh token) cho response
+ * Sử dụng getCookieOptions() để tự động xử lý cross-domain (sameSite: "none" khi cross-domain)
  */
 const setAuthCookies = (res, accessToken, refreshToken) => {
-  // Chú ý: Trên Vercel chỉ chạy HTTPS nên luôn bật secure
+  // Sử dụng getCookieOptions() để tự động xử lý sameSite cho cross-domain
   const cookieOptions = getCookieOptions();
   res.cookie("accessToken", accessToken, {
     ...cookieOptions,
-    httpOnly: true,
-    sameSite: "strict",
     maxAge: 15 * 60 * 1000, // 15 phút
-    secure: true,
   });
   res.cookie("refreshToken", refreshToken, {
     ...cookieOptions,
-    httpOnly: true,
-    sameSite: "strict",
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
-    secure: true,
   });
 };
 
@@ -184,11 +179,17 @@ const handleAuth = async (req, res, next, options = { optional: false }) => {
 // Middleware xác thực Admin (có refresh nếu cần)
 // Sử dụng cho các route cần xác thực bắt buộc
 export const authMiddleware = (req, res, next) =>
-  handleAuth(req, res, next, { optional: false, errorLogLabel: "Auth middleware error:" });
+  handleAuth(req, res, next, {
+    optional: false,
+    errorLogLabel: "Auth middleware error:",
+  });
 
 // Middleware kiểm tra quyền admin và xác thực token (thường như authMiddleware, nhưng để tách biệt logic nếu sau này bổ sung)
 export const adminMiddleware = (req, res, next) =>
-  handleAuth(req, res, next, { optional: false, errorLogLabel: "Admin middleware error:" });
+  handleAuth(req, res, next, {
+    optional: false,
+    errorLogLabel: "Admin middleware error:",
+  });
 
 /**
  * Hàm tiện ích sinh JWT token cho adminId
@@ -213,7 +214,10 @@ export const generateRefreshToken = (adminId) => {
  * Thường dùng cho các route muốn biết user có đăng nhập hay chưa
  */
 export const optionalAuthMiddleware = (req, res, next) =>
-  handleAuth(req, res, next, { optional: true, errorLogLabel: "Optional auth middleware error:" });
+  handleAuth(req, res, next, {
+    optional: true,
+    errorLogLabel: "Optional auth middleware error:",
+  });
 
 /**
  * Hàm tiện ích xác thực & giải mã JWT token (access token)
