@@ -39,7 +39,7 @@ import Image from 'next/image';
 import { centersAPI, Center, imageToBase64 } from '@/lib/api';
 
 // Số lượng bản ghi trên mỗi trang
-const ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE = 10;
 
 // Interface để lưu status theo kiểu chuỗi
 interface CenterWithStatus extends Center {
@@ -83,7 +83,7 @@ export default function AdminCentersPage() {
     try {
       setLoading(true);
       setError(null);
-      const response = await centersAPI.getCenters({
+      const response = await centersAPI.getAllCenters({
         sortBy: 'createdAt',
         sortOrder: 'desc',
       });

@@ -10,6 +10,9 @@ router.post("/register", adminController.registerAdmin);
 // Đăng nhập admin (không cần xác thực)
 router.post("/login", adminController.loginAdmin);
 
+// Đăng xuất admin (không cần xác thực)
+router.post("/logout", adminController.logoutAdmin);
+
 // Kiểm tra đăng nhập và lấy thông tin admin hiện tại (yêu cầu xác thực)
 router.get("/me", adminMiddleware, adminController.getCurrentAdmin);
 

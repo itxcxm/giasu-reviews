@@ -1,3 +1,4 @@
+
 // API utility functions
 import axios, { AxiosInstance, AxiosError } from 'axios';
 
@@ -144,6 +145,7 @@ export interface CreateReviewData {
 
 // API Functions
 export const centersAPI = {
+  
   // Lấy danh sách centers
   async getCenters(params?: {
     search?: string;
@@ -157,6 +159,26 @@ export const centersAPI = {
       params: {
         search: params?.search,
         isVerified: params?.isVerified !== undefined ? String(params.isVerified) : undefined,
+        sortBy: params?.sortBy,
+        sortOrder: params?.sortOrder,
+        page: params?.page,
+        limit: params?.limit,
+      },
+    });
+    return response.data;
+  },
+
+  // Lấy tất cả centers (dành cho admin, có phân trang/filter)
+  async getAllCenters(params?: {
+    search?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+    page?: number;
+    limit?: number;
+  }): Promise<{ success: boolean; data: Center[]; pagination?: any }> {
+    const response = await apiClient.get('/api/centers/all', {
+      params: {
+        search: params?.search,
         sortBy: params?.sortBy,
         sortOrder: params?.sortOrder,
         page: params?.page,
@@ -263,6 +285,11 @@ export const centersAPI = {
 
 // Admin API Functions
 export const adminAPI = {
+  // Đăng xuất admin
+  async logout(): Promise<{ success: boolean; message: string }> {
+    const response = await apiClient.post('/api/admin/logout');
+    return response.data;
+  },
   // Đăng nhập admin
   async login(email: string, password: string): Promise<{ success: boolean; message: string; data?: { admin: any } }> {
     const response = await apiClient.post('/api/admin/login', { email, password });

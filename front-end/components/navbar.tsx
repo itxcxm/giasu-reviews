@@ -5,9 +5,22 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Building2, Star } from 'lucide-react';
+import { adminAPI } from '@/lib/api';
+import { useRouter } from 'next/navigation';
 
 export function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const logOut = async () => {
+    try {
+      await adminAPI.logout();
+      // Sau khi logout, chuyển về trang đăng nhập hoặc reload
+      router.push('/login');
+    } catch (error) {
+      // Có thể hiển thị toast lỗi nếu muốn
+      window.location.reload();
+    }
+  }
 
   const navItems = [
     {
@@ -47,6 +60,9 @@ export function Navbar() {
                 </Link>
               );
             })}
+            <div>
+              <Button onClick={logOut} className="gap-2"> Đăng Xuất</Button>
+            </div>
           </div>
         </div>
       </div>

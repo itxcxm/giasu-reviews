@@ -11,7 +11,7 @@ export class CentersRepository {
         sortBy = "createdAt",
         sortOrder = "desc",
         page = 1,
-        limit = 10,
+        limit = 100,
       } = options;
 
       // Xây dựng query

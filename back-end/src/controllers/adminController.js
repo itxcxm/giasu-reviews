@@ -23,6 +23,30 @@ const adminService = new AdminService();
 const centersService = new CentersService();
 
 export class AdminController {
+    // Đăng xuất admin
+    logoutAdmin = async (req, res) => {
+      try {
+        // Xóa cookie accessToken và refreshToken bằng cách set lại với maxAge = 0
+        const cookieOptions = getCookieOptions();
+        res.cookie("accessToken", "", {
+          ...cookieOptions,
+          maxAge: 0,
+        });
+        res.cookie("refreshToken", "", {
+          ...cookieOptions,
+          maxAge: 0,
+        });
+        return res.status(HTTP_STATUS.OK).json({
+          success: true,
+          message: "Đăng xuất thành công",
+        });
+      } catch {
+        return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: "Lỗi hệ thống khi đăng xuất",
+        });
+      }
+    };
   constructor() {
     // Gán service vào class
     this.adminService = adminService;

@@ -18,6 +18,9 @@ const router = Router();
 // Lấy danh sách centers (có thể filter theo isVerified, search, pagination)
 router.get("/", centersController.getCenters);
 
+// Lấy tất cả centers (dành cho mục đích admin/moderator)
+router.get("/all", centersController.getAllCenters);
+
 // Tạo center mới (public - ai cũng có thể thêm, mặc định isVerified = false)
 // Phải đặt trước routes có :id để tránh conflict
 // Hỗ trợ upload file hình ảnh

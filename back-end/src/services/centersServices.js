@@ -6,6 +6,7 @@ export class CentersService {
     this.centersRepository = new CentersRepository();
   }
 
+
   // Lấy danh sách centers
   async getCenters(filters = {}, options = {}) {
     try {
@@ -16,7 +17,18 @@ export class CentersService {
       throw error;
     }
   }
-
+  
+  // Lấy tất cả centers (dành cho admin/moderator)
+  async getAllCenters(filters = {}, options = {}) {
+    try {
+      const result = await this.centersRepository.findAll(filters, options);
+      return result;
+    } catch (error) {
+      console.error("Get centers service error:", error);
+      throw error;
+    }
+  }
+  
   // Lấy center theo ID
   async getCenterById(id) {
     try {

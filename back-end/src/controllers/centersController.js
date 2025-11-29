@@ -1,3 +1,4 @@
+
 import { CentersService } from "../services/centersServices.js";
 import { HTTP_STATUS } from "../utils/constants.js";
 import { uploadService } from "../services/uploadService.js";
@@ -7,6 +8,31 @@ export class CentersController {
   constructor() {
     this.centersService = new CentersService();
   }
+
+    
+  getAllCenters = async (req, res) => {
+    try {
+      // Lấy tham số phân trang từ query
+      const { page = 1, limit = 10 } = req.query;
+      const options = {
+        page: parseInt(page),
+        limit: parseInt(limit),
+      };
+      // Gọi service với options phân trang
+      const result = await this.centersService.getAllCenters(options);
+      return res.status(HTTP_STATUS.OK).json({
+        success: true,
+        data: result.centers,
+        pagination: result.pagination,
+      });
+    } catch (error) {
+      console.error("Get all centers error:", error);
+      return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: error.message || "Lỗi khi lấy danh sách trung tâm",
+      });
+    }
+  };
 
   // Lấy danh sách các trung tâm
   getCenters = async (req, res) => {
