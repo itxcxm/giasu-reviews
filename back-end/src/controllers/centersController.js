@@ -1,4 +1,3 @@
-
 import { CentersService } from "../services/centersServices.js";
 import { HTTP_STATUS } from "../utils/constants.js";
 import { uploadService } from "../services/uploadService.js";
@@ -9,7 +8,6 @@ export class CentersController {
     this.centersService = new CentersService();
   }
 
-    
   getAllCenters = async (req, res) => {
     try {
       // Lấy tham số phân trang từ query
@@ -333,7 +331,7 @@ export class CentersController {
     try {
       const { id } = req.params;
       // Lấy dữ liệu từ body (text fields)
-      const {comment, reviewerName } = req.body;
+      const { comment, reviewerName, rating = 5, images, image } = req.body;
       // Lấy files từ multer (nếu có)
       const files = req.files || [];
 
@@ -404,7 +402,7 @@ export class CentersController {
             message: `Lỗi upload ảnh: ${uploadError.message}`,
           });
         }
-      } else if (image && image.trim()) {
+      } else if (image && typeof image === "string" && image.trim()) {
         // Kiểm tra kích thước base64 của ảnh đơn không quá 10MB
         const base64Data = image.includes(",") ? image.split(",")[1] : image;
         const base64Size = (base64Data.length * 3) / 4;
@@ -434,12 +432,16 @@ export class CentersController {
         }
       }
 
-      // Tạo object review data với URLs đã upload
+      const parsedRating = Math.max(1, Math.min(5, parseInt(rating, 10) || 5));
+
       const reviewData = {
-        rating: parseInt(rating),
-        comment: comment || "",
-        reviewerName: reviewerName || "",
-        ...(uploadedImageUrls.length > 0 ? { images: uploadedImageUrls } : {}),
+        rating: parsedRating,
+        comment: comment?.trim(),
+        reviewerName: reviewerName?.trim(),
+        images: uploadedImageUrls,
+        image:
+          uploadedImageUrls.length === 1 ? uploadedImageUrls[0] : undefined,
+        createdAt: new Date(),
       };
 
       // Thêm review cho trung tâm

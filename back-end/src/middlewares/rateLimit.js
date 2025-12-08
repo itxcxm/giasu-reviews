@@ -85,14 +85,14 @@ export const checkAdminForRateLimit = async (req, res, next) => {
 
 /**
  * Rate limiter cho việc tạo center mới
- * Giới hạn: 5 requests mỗi 15 phút từ mỗi IP
+ * Giới hạn: 30 requests mỗi 15 phút từ mỗi IP (nới lỏng để gửi nhiều request hơn)
  */
 export const createCenterRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 phút
-  max: 5, // Tối đa 5 requests trong 15 phút
+  max: 30, // Tối đa 30 requests trong 15 phút
   message: {
     success: false,
-    message: "Quá nhiều yêu cầu tạo trung tâm. Vui lòng thử lại sau 15 phút.",
+    message: "Quá nhiều yêu cầu tạo trung tâm. Vui lòng thử lại sau ít phút.",
   },
   standardHeaders: true, // Trả về rate limit info trong headers `RateLimit-*`
   legacyHeaders: false, // Tắt `X-RateLimit-*` headers
@@ -129,14 +129,15 @@ export const createCenterRateLimiter = rateLimit({
 
 /**
  * Rate limiter cho việc thêm review
- * Giới hạn: 1 request mỗi 1 giờ từ mỗi IP
+ * Giới hạn: 20 requests mỗi 1 giờ từ mỗi IP (nới lỏng để gửi nhiều request hơn)
  */
 export const addReviewRateLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 giờ
-  max: 1, // Tối đa 1 review trong 1 giờ
+  max: 20, // Tối đa 20 review trong 1 giờ
   message: {
     success: false,
-    message: "Bạn chỉ có thể thêm 1 đánh giá mỗi giờ. Vui lòng thử lại sau.",
+    message:
+      "Bạn chỉ có thể thêm tối đa 20 đánh giá mỗi giờ. Vui lòng thử lại sau.",
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -157,7 +158,7 @@ export const addReviewRateLimiter = rateLimit({
 
     res.status(HTTP_STATUS.TOO_MANY_REQUESTS).json({
       success: false,
-      message: `Bạn chỉ có thể thêm 1 đánh giá mỗi giờ. Vui lòng thử lại sau ${minutesRemaining} phút.`,
+      message: `Bạn đã đạt giới hạn đánh giá. Vui lòng thử lại sau ${minutesRemaining} phút.`,
       retryAfter: Math.ceil((req.rateLimit.resetTime - Date.now()) / 1000),
       resetTime: resetTime.toISOString(),
     });

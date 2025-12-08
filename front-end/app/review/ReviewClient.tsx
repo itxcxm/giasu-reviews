@@ -64,13 +64,6 @@ export default function ReviewClient({ center }: ReviewClientProps) {
     const reviews = centerData.reviews || [];
     const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     
-    reviews.forEach((review: any) => {
-      const rating = review.rating || 0;
-      if (rating >= 1 && rating <= 5) {
-        distribution[rating as keyof typeof distribution]++;
-      }
-    });
-
     const total = reviews.length || 1;
     return [5, 4, 3, 2, 1].map((stars) => ({
       stars,

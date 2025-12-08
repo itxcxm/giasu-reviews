@@ -8,7 +8,6 @@ import {
 } from "../middlewares/upload.js";
 import {
   createCenterRateLimiter,
-  addReviewRateLimiter,
   checkAdminForRateLimit,
 } from "../middlewares/rateLimit.js";
 
@@ -55,8 +54,6 @@ router.get("/:id", centersController.getCenterById);
 // Áp dụng rate limiting: 1 request mỗi 1 giờ từ mỗi IP (bỏ qua cho admin)
 router.post(
   "/:id/reviews",
-  checkAdminForRateLimit, // Kiểm tra admin trước (set req.isAdmin)
-  addReviewRateLimiter, // Rate limiting middleware (bỏ qua nếu req.isAdmin = true)
   uploadMultipleImages,
   handleUploadError,
   centersController.addReview

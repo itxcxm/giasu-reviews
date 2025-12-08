@@ -6,7 +6,6 @@ export class CentersService {
     this.centersRepository = new CentersRepository();
   }
 
-
   // Lấy danh sách centers
   async getCenters(filters = {}, options = {}) {
     try {
@@ -17,7 +16,7 @@ export class CentersService {
       throw error;
     }
   }
-  
+
   // Lấy tất cả centers (dành cho admin/moderator)
   async getAllCenters(filters = {}, options = {}) {
     try {
@@ -28,7 +27,7 @@ export class CentersService {
       throw error;
     }
   }
-  
+
   // Lấy center theo ID
   async getCenterById(id) {
     try {
@@ -93,13 +92,6 @@ export class CentersService {
   async addReview(centerId, reviewData) {
     try {
       // Validate review data
-      if (
-        !reviewData.rating ||
-        reviewData.rating < 1 ||
-        reviewData.rating > 5
-      ) {
-        throw new Error("Rating phải từ 1 đến 5");
-      }
 
       const center = await this.centersRepository.addReview(
         centerId,

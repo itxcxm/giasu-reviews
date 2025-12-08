@@ -222,7 +222,6 @@ export const centersAPI = {
   async addReview(centerId: string, data: CreateReviewData & { images?: File[] }): Promise<{ success: boolean; data: Center; message?: string }> {
     if (data.images && data.images.length > 0) {
       const formData = new FormData();
-      formData.append('rating', data.rating.toString());
       formData.append('comment', data.comment || '');
       formData.append('reviewerName', data.reviewerName || '');
       
