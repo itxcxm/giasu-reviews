@@ -333,17 +333,9 @@ export class CentersController {
     try {
       const { id } = req.params;
       // Lấy dữ liệu từ body (text fields)
-      const { rating, comment, reviewerName } = req.body;
+      const {comment, reviewerName } = req.body;
       // Lấy files từ multer (nếu có)
       const files = req.files || [];
-
-      // Kiểm tra rating hợp lệ (từ 1 đến 5)
-      if (!rating || rating < 1 || rating > 5) {
-        return res.status(HTTP_STATUS.BAD_REQUEST).json({
-          success: false,
-          message: "Rating phải từ 1 đến 5",
-        });
-      }
 
       // Upload ảnh lên upanhnhanh.com nếu có
       let uploadedImageUrls = [];

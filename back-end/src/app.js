@@ -18,7 +18,7 @@ const allowedOrigins = process.env.CLIENT_URL
   ? process.env.CLIENT_URL.split(",").map((url) => url.trim())
   : ["http://localhost:3000", "http://localhost:5173"];
 
-// Thiết lập middleware CORS (Cross-Origin Resource Sharing)
+// Thiết lập middleware CORS (Cross-Origin Resource Sharing)z
 app.use(
   cors({
     origin: function (origin, callback) {
