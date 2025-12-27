@@ -1,4 +1,4 @@
-// HTTP Status Codes
+// Tập hợp các mã trạng thái HTTP thường dùng để mã nguồn rõ ràng và dễ bảo trì.
 export const HTTP_STATUS = {
   OK: 200,
   CREATED: 201,
@@ -11,52 +11,53 @@ export const HTTP_STATUS = {
   INTERNAL_SERVER_ERROR: 500,
 };
 
-// JWT Configuration
+// Cấu hình cho JSON Web Token (JWT), lấy từ biến môi trường hoặc dùng giá trị mặc định.
 export const JWT_CONFIG = {
-  SECRET: process.env.JWT_SECRET || "your-secret-key",
-  REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "your-refresh-secret-key",
+  // Khóa bí mật để ký và xác thực Access Token.
+  ACCESS_TOKEN_SECRET: process.env.JWT_SECRET || "your-secret-key",
+  // Khóa bí mật riêng cho Refresh Token để tăng cường bảo mật.
+  REFRESH_TOKEN_SECRET: process.env.JWT_REFRESH_SECRET || "your-refresh-secret-key",
+  // Thời gian hết hạn của Access Token (mặc định 15 phút).
   EXPIRES_IN: process.env.JWT_EXPIRES_IN || "15m",
+  // Thời gian hết hạn của Refresh Token (mặc định 7 ngày).
   REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
 };
 
-// Cookie Options
+// Hàm này tạo ra các tùy chọn (options) cho việc thiết lập cookie một cách linh động
+// tùy thuộc vào môi trường hoạt động (production/development) và cấu hình cross-domain.
 export const getCookieOptions = () => {
-  // Trong production, nếu front-end và back-end ở domain khác nhau, cần sameSite: "none" và secure: true
   const isProduction = process.env.NODE_ENV === "production";
+  
+  // Kiểm tra xem biến môi trường CLIENT_URL có được thiết lập hay không.
+  // Điều này thường chỉ ra rằng frontend và backend đang ở hai domain khác nhau.
+  const hasClientUrl = process.env.CLIENT_URL && process.env.CLIENT_URL.trim() !== "";
 
-  // Kiểm tra xem có CLIENT_URL được set không (thường là cross-domain trong production)
-  // Nếu CLIENT_URL chứa https:// hoặc có nhiều URLs (phân cách bởi dấu phẩy), có thể là cross-domain
-  const hasClientUrl =
-    process.env.CLIENT_URL && process.env.CLIENT_URL.trim() !== "";
+  // Giả định là cross-domain nếu đang ở môi trường production VÀ có CLIENT_URL.
+  // Ở đây, `|| true` được thêm vào để mặc định coi môi trường production là cross-domain
+  // cho an toàn, vì các nền tảng như Vercel thường triển khai frontend và backend trên các subdomain khác nhau.
+  const isCrossDomain = isProduction && (hasClientUrl || true); 
 
-  // Trên Vercel, frontend và backend thường ở domain khác nhau (cross-domain)
-  // Nếu có CLIENT_URL trong production, giả định là cross-domain
-  // HOẶC nếu đang ở production (Vercel), luôn giả định cross-domain để an toàn
-  const isCrossDomain = isProduction && (hasClientUrl || true); // Luôn true trong production để đảm bảo cookies hoạt động
+  // Xác định giá trị cho thuộc tính `sameSite` của cookie.
+  // - "none": Cần thiết cho các kịch bản cross-domain để trình duyệt gửi cookie kèm theo request.
+  // - "lax": Một giá trị cân bằng, an toàn cho môi trường production same-site và development.
+  const sameSiteValue = isCrossDomain ? "none" : "lax";
 
-  // Khi sameSite: "none", BẮT BUỘC phải có secure: true
-  // Trong production với cross-domain, luôn dùng "none" để cookie có thể được gửi cross-domain
-  // "lax" cho same-site hoặc development
-  const sameSiteValue = isCrossDomain ? "none" : isProduction ? "lax" : "lax";
-
-  // Secure bắt buộc khi sameSite: "none" hoặc production (Vercel luôn dùng HTTPS)
+  // Xác định giá trị cho thuộc tính `secure`.
+  // Thuộc tính này yêu cầu trình duyệt chỉ gửi cookie qua kết nối HTTPS.
+  // BẮT BUỘC phải là `true` khi `sameSite` là "none".
   const secureValue = isProduction || sameSiteValue === "none";
 
   const options = {
-    httpOnly: true,
-    secure: secureValue, // Secure bắt buộc khi sameSite: "none" hoặc production
-    sameSite: sameSiteValue, // "none" cho cross-domain, "lax" cho same-site
-    path: "/", // Cookie hoạt động trên tất cả paths
-    // Không set domain để cookie hoạt động với domain hiện tại
-    // Domain sẽ tự động được set bởi browser dựa trên domain của response
+    httpOnly: true, // Ngăn không cho JavaScript phía client truy cập vào cookie, giúp chống lại tấn công XSS.
+    secure: secureValue,
+    sameSite: sameSiteValue,
+    path: "/", // Cookie sẽ được áp dụng cho tất cả các đường dẫn trên domain.
   };
 
-  // Log để debug (chỉ trong development hoặc khi cần)
-  if (
-    process.env.NODE_ENV === "development" ||
-    process.env.DEBUG_COOKIES === "true"
-  ) {
-    console.log("getCookieOptions() result:", {
+  // Log các tùy chọn cookie ra console nếu đang ở môi trường development hoặc khi biến DEBUG_COOKIES được bật.
+  // Rất hữu ích cho việc gỡ lỗi các vấn đề liên quan đến cookie.
+  if (process.env.NODE_ENV === "development" || process.env.DEBUG_COOKIES === "true") {
+    console.log("Thông tin cấu hình Cookie:", {
       isProduction,
       hasClientUrl,
       isCrossDomain,

@@ -36,7 +36,7 @@ import { Plus, Trash2, Search, ChevronLeft, ChevronRight, Star, Upload, X, FileT
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
-import { centersAPI, Review } from '@/lib/api';
+import { reviewsApi, Review } from '@/lib/api';
 
 // Định nghĩa kiểu dữ liệu review có thêm cờ trạng thái và tên học viên
 interface ReviewWithStatus extends Review {
@@ -58,7 +58,7 @@ export default function AdminReviewsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingReview, setEditingReview] = useState<ReviewWithStatus | null>(null);
-  const [deletingReview, setDeletingReview] = useState<{ centerId: string; reviewId: string } | null>(null);
+  const [deletingReview, setDeletingReview] = useState<{ reviewId: string; } | null>(null);
   
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -83,7 +83,7 @@ export default function AdminReviewsPage() {
     try {
       setLoading(true);
       setError(null);
-      const response = await centersAPI.getAllReviews({
+      const response = await reviewsApi.getAllReviews({
         sortBy: 'createdAt',
         sortOrder: 'desc',
       });
@@ -93,7 +93,7 @@ export default function AdminReviewsPage() {
         ...review,
         // Giả định toàn bộ review load được từ API đã được duyệt
         status: 'approved' as const, // Có thể mở rộng về sau để hỗ trợ duyệt nếu có trường status
-        studentName: review.reviewerName || 'Người dùng',
+        studentName: review.user?.name || 'Người dùng',
       }));
 
       setReviews(transformedReviews);
@@ -210,11 +210,9 @@ export default function AdminReviewsPage() {
 
   // Gán review chuẩn bị xóa và mở dialog xác nhận xóa
   const handleDelete = (review: ReviewWithStatus) => {
-    if (review.centerId && (review._id || review.id)) {
-      setDeletingReview({
-        centerId: review.centerId,
-        reviewId: review._id || review.id || '',
-      });
+    const reviewId = review._id || review.id;
+    if (reviewId) {
+      setDeletingReview({reviewId});
       setIsDeleteDialogOpen(true);
     }
   };
@@ -223,7 +221,7 @@ export default function AdminReviewsPage() {
   const confirmDelete = async () => {
     if (deletingReview) {
       try {
-        await centersAPI.deleteReview(deletingReview.centerId, deletingReview.reviewId);
+        await reviewsApi.deleteReview(deletingReview.reviewId);
         // Sau khi xóa, tải lại review
         await loadReviews();
         // Nếu xóa review cuối cùng của trang và không phải trang đầu, chuyển sang trang trước đó
@@ -700,7 +698,6 @@ export default function AdminReviewsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       {/* Dialog xác nhận xóa review */}
       <AlertDialog
         open={isDeleteDialogOpen}

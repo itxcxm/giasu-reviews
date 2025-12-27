@@ -8,17 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { centersAPI, Center } from '@/lib/api';
+import { centersApi, Center } from '@/lib/api';
 
 export default function Home() {
-  // Trạng thái từ khóa tìm kiếm
   const [searchQuery, setSearchQuery] = useState('');
-  // Trạng thái danh sách trung tâm
   const [centers, setCenters] = useState<Center[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load danh sách centers từ API
   useEffect(() => {
     loadCenters();
   }, []);
@@ -27,8 +24,8 @@ export default function Home() {
     try {
       setLoading(true);
       setError(null);
-      const response = await centersAPI.getCenters({
-        isVerified: true, // Chỉ lấy centers đã được duyệt
+      const response = await centersApi.getCenters({
+        isVerified: true,
         sortBy: 'createdAt',
         sortOrder: 'desc',
         limit: 50,
@@ -42,12 +39,11 @@ export default function Home() {
     }
   };
 
-  // Xử lý tìm kiếm trung tâm
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
     try {
       setLoading(true);
-      const response = await centersAPI.getCenters({
+      const response = await centersApi.getCenters({
         search: query,
         isVerified: true,
         sortBy: 'createdAt',
@@ -63,7 +59,6 @@ export default function Home() {
     }
   };
 
-  // Lọc centers theo search query (client-side fallback)
   const filteredCenters = centers.filter(
     (center) =>
       !searchQuery ||
@@ -73,25 +68,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-lg flex items-center justify-center">
-                <Users className="w-6 h-6 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                Đánh Giá Trung Tâm
-              </h1>
-            </div>
-            {/* Nút thêm trung tâm mới */}
-            <Link href="/add-center">
-              <Button>Thêm Trung Tâm</Button>
-            </Link>
-          </div>
-        </div>
-      </header>
-
       <main className="container mx-auto px-4 py-12">
         <div className="max-w-4xl mx-auto mb-12 text-center">
           <h2 className="text-4xl font-bold text-slate-900 mb-4">
@@ -101,7 +77,6 @@ export default function Home() {
             Khám phá và đánh giá các trung tâm gia sư tốt nhất tại Việt Nam
           </p>
 
-          {/* Thanh tìm kiếm trung tâm */}
           <div className="relative max-w-2xl mx-auto">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
             <Input
@@ -114,7 +89,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Chỉ hiện tiêu đề "Mới Cập Nhật" nếu không tìm kiếm */}
         {!searchQuery && (
           <div className="mb-6">
             <p className="text-slate-600 text-2xl font-bold">
@@ -123,14 +97,12 @@ export default function Home() {
           </div>
         )}
 
-        {/* Loading state */}
         {loading && (
           <div className="text-center py-12">
             <p className="text-slate-500 text-lg">Đang tải...</p>
           </div>
         )}
 
-        {/* Error state */}
         {error && !loading && (
           <div className="text-center py-12">
             <p className="text-red-500 text-lg">{error}</p>
@@ -140,7 +112,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Lưới danh sách trung tâm */}
         {!loading && !error && (
           <>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -166,7 +137,6 @@ export default function Home() {
                           <Users className="w-12 h-12 text-slate-400" />
                         </div>
                       )}
-                      {/* Badge hiển thị điểm đánh giá */}
                       <div className="absolute top-3 right-3">
                         <Badge variant="secondary" className="bg-white/90 backdrop-blur-sm text-yellow-700 border-yellow-200 shadow-sm">
                           <Star className="w-3 h-3 fill-yellow-500 text-yellow-500 mr-1" />
@@ -189,7 +159,7 @@ export default function Home() {
                       <div className="flex items-center justify-between pt-4 border-t text-xs text-slate-500">
                         <div className="flex items-center gap-1">
                           <Users className="w-3.5 h-3.5" />
-                          <span>{center.reviewCount || 0} đánh giá</span>
+                          <span>{center.totalReviews || 0} đánh giá</span>
                         </div>
                       </div>
                     </CardContent>
@@ -199,7 +169,6 @@ export default function Home() {
               })}
             </div>
 
-            {/* Khi không có trung tâm phù hợp */}
             {filteredCenters.length === 0 && (
               <div className="text-center py-12">
                 <p className="text-slate-500 text-lg mb-4">
@@ -218,7 +187,6 @@ export default function Home() {
         )}
       </main>
 
-      {/* Footer trang */}
       <footer className="border-t bg-slate-50 mt-20">
         <div className="container mx-auto px-4 py-8 text-center text-slate-600">
           <p>© 2025 Đánh Giá Trung Tâm. Website đánh giá trung tâm gia sư tại Việt Nam.</p>

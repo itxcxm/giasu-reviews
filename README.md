@@ -1,53 +1,1066 @@
-# Gia Sư Reviews - Hệ Thống Đánh Giá Trung Tâm Gia Sư
+# 🎓 Gia Sư Reviews - Hệ Thống Đánh Giá Trung Tâm Gia Sư
 
-Hệ thống web đánh giá và quản lý trung tâm gia sư tại Việt Nam. Cho phép người dùng xem, tìm kiếm, đánh giá các trung tâm gia sư và quản trị viên quản lý nội dung.
+> Nền tảng web toàn diện để tìm kiếm, đánh giá và quản lý trung tâm gia sư tại Việt Nam
+
+![Status](https://img.shields.io/badge/status-active-brightgreen)
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![License](https://img.shields.io/badge/license-ISC-green)
+
+---
 
 ## 📋 Mục Lục
 
+- [Giới Thiệu](#giới-thiệu)
 - [Tính Năng](#tính-năng)
 - [Công Nghệ Sử Dụng](#công-nghệ-sử-dụng)
 - [Cấu Trúc Dự Án](#cấu-trúc-dự-án)
-- [Cài Đặt](#cài-đặt)
-- [Cấu Hình](#cấu-hình)
+- [Yêu Cầu Hệ Thống](#yêu-cầu-hệ-thống)
+- [Cài Đặt Nhanh](#cài-đặt-nhanh)
+- [Cấu Hình Chi Tiết](#cấu-hình-chi-tiết)
 - [Chạy Ứng Dụng](#chạy-ứng-dụng)
-- [Deploy Lên Vercel](#deploy-lên-vercel)
-- [Hệ Thống Authentication](#hệ-thống-authentication)
 - [API Documentation](#api-documentation)
-- [Bảo Mật](#bảo-mật)
+- [Hệ Thống Authentication](#hệ-thống-authentication)
+- [Hệ Thống Đánh Giá & Reviews](#hệ-thống-đánh-giá--reviews)
+- [Upload Hình Ảnh](#upload-hình-ảnh)
 - [Rate Limiting](#rate-limiting)
+- [Deploy Lên Vercel](#deploy-lên-vercel)
 - [Troubleshooting](#troubleshooting)
 - [Đóng Góp](#đóng-góp)
+- [Liên Hệ](#liên-hệ)
 
-## ✨ Tính Năng
+---
 
-### Người Dùng
+## 🌟 Giới Thiệu
 
-- 🔍 Tìm kiếm trung tâm gia sư
-- 📝 Xem chi tiết trung tâm và đánh giá
-- ⭐ Đánh giá trung tâm (rating 1-5 sao)
-- 💬 Viết bình luận với hình ảnh (tối đa 5 ảnh)
-- 📸 Upload hình ảnh trung tâm mới
-- 🔒 Rate limiting để tránh spam
+**Gia Sư Reviews** là một hệ thống web hiện đại được xây dựng với công nghệ stack MERN (MongoDB, Express, React/Next.js, Node.js). Ứng dụng cho phép:
 
-### Quản Trị Viên
+- **Học sinh/Phụ huynh**: Tìm kiếm, xem chi tiết, đánh giá các trung tâm gia sư
+- **Quản Trị Viên**: Quản lý danh sách trung tâm, duyệt nội dung người dùng
+- **Cộng Đồng**: Chia sẻ kinh nghiệm qua hệ thống đánh giá và bình luận
 
-- 🔐 Đăng nhập/Đăng ký admin
-- ✅ Duyệt/Hủy duyệt trung tâm
-- 📊 Quản lý trung tâm (CRUD)
-- 💬 Quản lý đánh giá
-- 🛡️ Bảo vệ routes với authentication middleware
-- ⚡ Không bị giới hạn rate limit
+---
+
+## ✨ Tính Năng Chi Tiết
+
+### 👥 Cho Người Dùng Thường
+
+| Tính Năng                  | Mô Tả                                                                |
+| -------------------------- | -------------------------------------------------------------------- |
+| 🔍 **Tìm Kiếm Trung Tâm**  | Tìm kiếm theo tên, địa chỉ hoặc từ khóa                              |
+| 📱 **Danh Sách Trung Tâm** | Xem danh sách các trung tâm đã được xác thực                         |
+| 📄 **Chi Tiết Trung Tâm**  | Xem thông tin đầy đủ: địa chỉ, số điện thoại, website, giờ hoạt động |
+| ⭐ **Hệ Thống Đánh Giá**   | Đánh giá trung tâm từ 1-5 sao (chỉ người có account)                 |
+| 💬 **Viết Bình Luận**      | Chia sẻ kinh nghiệm về trung tâm với hình ảnh đi kèm (tối đa 5 ảnh)  |
+| 📸 **Upload Hình Ảnh**     | Tải lên hình ảnh trung tâm để giúp người khác hiểu rõ hơn            |
+| 📊 **Xem Thống Kê**        | Xem trung bình điểm và số lượng đánh giá của trung tâm               |
+
+### 🔐 Cho Quản Trị Viên (Admin)
+
+| Tính Năng                  | Mô Tả                                                |
+| -------------------------- | ---------------------------------------------------- |
+| 🔑 **Đăng Nhập/Đăng Ký**   | Tài khoản admin được kích hoạt bởi super admin       |
+| ✅ **Duyệt Nội Dung**      | Xét duyệt trung tâm mới trước khi hiển thị công khai |
+| 📝 **Quản Lý Trung Tâm**   | Thêm, sửa, xóa thông tin trung tâm                   |
+| 💬 **Quản Lý Đánh Giá**    | Xem tất cả đánh giá từ tất cả trung tâm, xóa nếu cần |
+| 🛡️ **Bảo Vệ Nội Dung**     | Xóa bình luận không phù hợp                          |
+| 🚀 **Không Bị Rate Limit** | Admin không bị hạn chế số lượng request              |
+
+---
 
 ## 🛠️ Công Nghệ Sử Dụng
 
-### Front-end
+### 📌 Stack Công Nghệ Tổng Quan
 
-- **Next.js 14** - React framework với App Router
-- **TypeScript** - Type safety
-- **Tailwind CSS** - Styling
-- **shadcn/ui** - UI components
-- **Axios** - HTTP client
-- **Lucide React** - Icons
+```
+┌─────────────────────────────────────────┐
+│         MERN STACK ARCHITECTURE         │
+├─────────────────────────────────────────┤
+│  Frontend: Next.js 14 + TypeScript      │
+│  Backend: Node.js + Express 5           │
+│  Database: MongoDB + Mongoose           │
+│  Hosting: Vercel (Frontend)             │
+└─────────────────────────────────────────┘
+```
+
+### 🎨 Frontend
+
+| Công Nghệ           | Phiên Bản | Mục Đích                       |
+| ------------------- | --------- | ------------------------------ |
+| **Next.js**         | 14.x      | React framework với App Router |
+| **TypeScript**      | 5.x       | Type safety và code quality    |
+| **Tailwind CSS**    | 3.x       | Styling utility-first          |
+| **shadcn/ui**       | Latest    | High-quality UI components     |
+| **React Hook Form** | 7.x       | Form state management          |
+| **Axios**           | 1.13.x    | HTTP client                    |
+| **Lucide React**    | Latest    | Beautiful icons                |
+| **Radix UI**        | Latest    | Headless UI primitives         |
+
+### 🖥️ Backend
+
+| Công Nghệ              | Phiên Bản | Mục Đích                      |
+| ---------------------- | --------- | ----------------------------- |
+| **Express.js**         | 5.1.x     | Web framework                 |
+| **Node.js**            | 18.x+     | JavaScript runtime            |
+| **MongoDB**            | 5.x+      | NoSQL database                |
+| **Mongoose**           | 8.x       | ODM (Object Data Modeling)    |
+| **JWT (jsonwebtoken)** | 9.x       | Authentication tokens         |
+| **bcryptjs**           | 2.4.x     | Password hashing              |
+| **Multer**             | 2.x       | File upload handling          |
+| **express-rate-limit** | 8.x       | Rate limiting middleware      |
+| **CORS**               | 2.8.x     | Cross-origin resource sharing |
+| **Axios**              | 1.13.x    | HTTP requests (image upload)  |
+| **dotenv**             | 17.x      | Environment variables         |
+
+---
+
+## 📂 Cấu Trúc Dự Án
+
+```
+giasu-reviews/
+├── 📁 back-end/                  # API Backend
+│   ├── src/
+│   │   ├── 📁 config/            # Cấu hình ứng dụng
+│   │   │   └── database.js       # MongoDB connection
+│   │   ├── 📁 controllers/       # Request handlers
+│   │   │   ├── adminController.js
+│   │   │   └── centersController.js
+│   │   ├── 📁 middlewares/       # Custom middlewares
+│   │   │   ├── auth.js           # JWT authentication
+│   │   │   ├── rateLimit.js      # Rate limiting
+│   │   │   └── upload.js         # File upload
+│   │   ├── 📁 models/            # Mongoose schemas
+│   │   │   ├── Admin.js          # Admin user model
+│   │   │   └── Centers.js        # Center & Review model
+│   │   ├── 📁 repositories/      # Database queries
+│   │   ├── 📁 routes/            # API routes
+│   │   │   ├── adminRouter.js
+│   │   │   └── centersRouter.js
+│   │   ├── 📁 services/          # Business logic
+│   │   │   ├── adminServices.js
+│   │   │   ├── centersServices.js
+│   │   │   └── uploadService.js
+│   │   ├── 📁 utils/             # Utilities
+│   │   └── app.js                # Express app setup
+│   ├── check-db.js               # Database checker script
+│   ├── package.json
+│   ├── env.template              # Environment template
+│   └── README.md
+│
+├── 📁 front-end/                 # Next.js Frontend
+│   ├── app/                      # App Router pages
+│   │   ├── layout.tsx            # Root layout
+│   │   ├── page.tsx              # Home page
+│   │   ├── 📁 admin/             # Admin dashboard
+│   │   │   ├── layout.tsx
+│   │   │   ├── page.tsx
+│   │   │   ├── 📁 centers/       # Manage centers
+│   │   │   └── 📁 reviews/       # Manage reviews
+│   │   ├── 📁 login/             # Login page
+│   │   ├── 📁 add-center/        # Add center page
+│   │   └── 📁 review/            # Review page
+│   ├── components/               # Reusable components
+│   │   ├── navbar.tsx
+│   │   ├── AdminGuard.tsx        # Admin protection
+│   │   └── 📁 ui/                # UI components (shadcn/ui)
+│   ├── 📁 hooks/                 # Custom React hooks
+│   │   └── use-toast.ts
+│   ├── 📁 lib/                   # Utility functions
+│   │   ├── api.ts                # API client setup
+│   │   └── utils.ts
+│   ├── 📁 styles/                # Global styles
+│   ├── tailwind.config.ts
+│   ├── tsconfig.json
+│   ├── next.config.js
+│   ├── package.json
+│   └── README.md
+│
+└── README.md                      # Project documentation
+```
+
+---
+
+## 🔧 Yêu Cầu Hệ Thống
+
+### Bắt Buộc
+
+- **Node.js**: >= 18.x LTS
+- **npm**: >= 9.x
+- **MongoDB**: >= 5.x (cục bộ hoặc MongoDB Atlas)
+- **Git**: Để clone repository
+
+### Tùy Chọn
+
+- **Postman**: Để test API
+- **Visual Studio Code**: Editor được khuyến nghị
+- **Vercel Account**: Để deploy frontend
+
+### Kiểm Tra Cài Đặt
+
+```bash
+# Kiểm tra Node.js version
+node --version
+
+# Kiểm tra npm version
+npm --version
+
+# Kiểm tra MongoDB (nếu cài đặt cục bộ)
+mongod --version
+```
+
+---
+
+## 🚀 Cài Đặt Nhanh
+
+### 1️⃣ Clone Repository
+
+```bash
+git clone https://github.com/yourusername/giasu-reviews.git
+cd giasu-reviews
+```
+
+### 2️⃣ Cài Đặt Backend
+
+```bash
+cd back-end
+cp env.template .env
+
+# Cài đặt dependencies
+npm install
+```
+
+**Cấu hình `.env` backend:**
+
+```env
+NODE_ENV=development
+PORT=5000
+CLIENT_URL=http://localhost:3000
+
+MONGODB_URI=mongodb://localhost:27017/giasu-reviews
+
+JWT_SECRET=your-super-secret-key-change-in-production
+JWT_REFRESH_SECRET=your-refresh-secret-key
+JWT_EXPIRES_IN=15m
+JWT_REFRESH_EXPIRES_IN=7d
+
+APIKEY=your-upanhnhanh-api-key
+APIURL=https://upanhnhanh.com/api/v1
+```
+
+### 3️⃣ Cài Đặt Frontend
+
+```bash
+cd ../front-end
+cp env.example .env.local
+
+# Cài đặt dependencies
+npm install
+```
+
+**Cấu hình `.env.local` frontend:**
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:5000
+```
+
+### 4️⃣ Khởi Động MongoDB
+
+```bash
+# Windows
+mongod
+
+# Linux/Mac
+sudo systemctl start mongod
+```
+
+### 5️⃣ Chạy Ứng Dụng
+
+**Terminal 1 - Backend:**
+
+```bash
+cd back-end
+npm run dev
+```
+
+**Terminal 2 - Frontend:**
+
+```bash
+cd front-end
+npm run dev
+```
+
+Truy cập: [http://localhost:3000](http://localhost:3000)
+
+---
+
+## ⚙️ Cấu Hình Chi Tiết
+
+### Backend Configuration
+
+#### `.env` File
+
+```env
+# 🖥️ Server Settings
+NODE_ENV=development|production|test
+PORT=5000
+
+# 🌐 CORS & Client URLs
+CLIENT_URL=http://localhost:3000,http://localhost:5173,https://yourdomain.com
+
+# 🗄️ Database Connection
+MONGODB_URI=mongodb://localhost:27017/giasu-reviews
+# OR
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/giasu-reviews
+
+# 🔐 JWT Authentication
+JWT_SECRET=change-this-to-a-very-long-random-string-in-production
+JWT_REFRESH_SECRET=another-long-random-string-for-refresh-tokens
+JWT_EXPIRES_IN=15m
+JWT_REFRESH_EXPIRES_IN=7d
+
+# 📸 Image Upload API (upanhnhanh.com)
+APIKEY=your-api-key-from-upanhnhanh
+APIURL=https://upanhnhanh.com/api/v1
+```
+
+#### MongoDB Setup
+
+**Cục bộ:**
+
+```bash
+# Windows - Khởi động MongoDB
+mongod
+
+# Kết nối local
+MONGODB_URI=mongodb://localhost:27017/giasu-reviews
+```
+
+**MongoDB Atlas (Cloud):**
+
+```bash
+# Tạo cluster trên https://www.mongodb.com/cloud/atlas
+# Copy connection string
+MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/giasu-reviews?retryWrites=true&w=majority
+```
+
+### Frontend Configuration
+
+#### `.env.local` File
+
+```env
+# API Configuration
+NEXT_PUBLIC_API_URL=http://localhost:5000
+
+# Development
+# NEXT_PUBLIC_API_URL=http://127.0.0.1:5000
+
+# Production
+# NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+```
+
+---
+
+## 🏃 Chạy Ứng Dụng
+
+### Development Mode
+
+**Backend (Node.js + Express):**
+
+```bash
+cd back-end
+npm run dev
+# Server chạy tại: http://localhost:5000
+```
+
+**Frontend (Next.js):**
+
+```bash
+cd front-end
+npm run dev
+# App chạy tại: http://localhost:3000
+```
+
+### Production Mode
+
+**Backend:**
+
+```bash
+cd back-end
+npm start
+```
+
+**Frontend:**
+
+```bash
+cd front-end
+npm run build
+npm start
+```
+
+### Test Database Connection
+
+```bash
+cd back-end
+node check-db.js
+```
+
+---
+
+## 📡 API Documentation
+
+### Base URL
+
+```
+http://localhost:5000/api
+```
+
+### Authentication Endpoints
+
+#### Đăng Ký Admin
+
+```http
+POST /admin/register
+Content-Type: application/json
+
+{
+  "name": "Admin Name",
+  "email": "admin@example.com",
+  "password": "securePassword123"
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "success": true,
+  "message": "Admin đã đăng ký thành công",
+  "data": {
+    "id": "user_id",
+    "email": "admin@example.com",
+    "name": "Admin Name"
+  }
+}
+```
+
+#### Đăng Nhập Admin
+
+```http
+POST /admin/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "securePassword123"
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "message": "Đăng nhập thành công",
+  "data": {
+    "token": "eyJhbGc...",
+    "refreshToken": "eyJhbGc...",
+    "admin": { "id": "...", "email": "...", "name": "..." }
+  }
+}
+```
+
+### Center Endpoints
+
+#### Lấy Danh Sách Trung Tâm
+
+```http
+GET /centers?isVerified=true&limit=20&page=1
+```
+
+**Query Parameters:**
+| Param | Type | Description |
+|-------|------|-------------|
+| `isVerified` | boolean | Filter by verification status |
+| `search` | string | Search by name |
+| `limit` | number | Items per page (default: 20) |
+| `page` | number | Page number (default: 1) |
+| `sortBy` | string | Sort field (createdAt, rating, name) |
+| `sortOrder` | string | Sort order (asc, desc) |
+
+#### Lấy Chi Tiết Trung Tâm
+
+```http
+GET /centers/:id
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "center_id",
+    "name": "Trung Tâm Gia Sư ABC",
+    "address": "123 Nguyễn Trãi, Thanh Xuân, Hà Nội",
+    "phone": "0123456789",
+    "website": "https://example.com",
+    "hours": "8:00 AM - 6:00 PM",
+    "image": "https://...",
+    "description": "...",
+    "averageRating": 4.5,
+    "totalReviews": 15,
+    "reviews": [
+      {
+        "_id": "review_id",
+        "rating": 5,
+        "comment": "Chất lượng tuyệt vời!",
+        "reviewerName": "Học sinh A",
+        "images": ["https://..."],
+        "createdAt": "2024-01-15T10:30:00Z"
+      }
+    ]
+  }
+}
+```
+
+#### Tạo Trung Tâm Mới
+
+```http
+POST /centers
+Content-Type: multipart/form-data
+
+{
+  "name": "Trung Tâm Gia Sư XYZ",
+  "address": "456 Trần Quốc Toản",
+  "phone": "0987654321",
+  "website": "https://example.com",
+  "hours": "7:00 AM - 9:00 PM",
+  "description": "...",
+  "image": <file>
+}
+```
+
+#### Thêm Đánh Giá
+
+```http
+POST /centers/:id/reviews
+Content-Type: multipart/form-data
+
+{
+  "rating": 5,
+  "comment": "Dạy rất tốt, giáo viên thân thiện",
+  "reviewerName": "Phụ Huynh B",
+  "images": [<file1>, <file2>, ...]  // Tối đa 5 ảnh
+}
+```
+
+### Admin Endpoints (Yêu cầu Authorization)
+
+```bash
+# Header yêu cầu
+Authorization: Bearer <token>
+```
+
+#### Cập Nhật Trung Tâm
+
+```http
+PUT /centers/:id
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "Tên mới",
+  "isVerified": true,
+  "description": "Mô tả mới"
+}
+```
+
+#### Xóa Trung Tâm
+
+```http
+DELETE /centers/:id
+Authorization: Bearer <token>
+```
+
+#### Lấy Tất Cả Đánh Giá (Admin)
+
+```http
+GET /centers/reviews/all
+Authorization: Bearer <token>
+```
+
+---
+
+## 🔐 Hệ Thống Authentication
+
+### JWT (JSON Web Tokens)
+
+Ứng dụng sử dụng JWT để xác thực admin:
+
+1. **Access Token** (15 phút)
+
+   - Dùng để xác thực mỗi request
+   - Lưu trong cookie HTTP-only
+
+2. **Refresh Token** (7 ngày)
+   - Dùng để lấy access token mới
+   - Lưu an toàn trên server
+
+```javascript
+// Cấu trúc JWT Payload
+{
+  "id": "admin_id",
+  "email": "admin@example.com",
+  "role": "admin",
+  "iat": 1234567890,
+  "exp": 1234568790
+}
+```
+
+### Middleware Authentication
+
+```javascript
+// adminMiddleware kiểm tra:
+- Header Authorization có JWT token?
+- Token hợp lệ?
+- Token chưa hết hạn?
+- User có role = "admin"?
+```
+
+### Lưu Trữ Token
+
+- **Access Token**: HTTP-only Cookie (tự động gửi mỗi request)
+- **Refresh Token**: HTTP-only Cookie (an toàn hơn)
+
+---
+
+## ⭐ Hệ Thống Đánh Giá & Reviews
+
+### Cấu Trúc Review
+
+```javascript
+{
+  "_id": "review_id",
+  "rating": 1-5,                    // Bắt buộc
+  "comment": "Bình luận của user",  // Tùy chọn
+  "reviewerName": "Tên người viết", // Tùy chọn
+  "images": ["url1", "url2", ...],  // Tối đa 5 ảnh
+  "createdAt": "2024-01-15T10:30:00Z",
+  "updatedAt": "2024-01-15T10:30:00Z"
+}
+```
+
+### Quy Tắc Đánh Giá
+
+| Quy Tắc            | Chi Tiết                           |
+| ------------------ | ---------------------------------- |
+| **Rating**         | 1 sao (Rất tệ) - 5 sao (Tuyệt vời) |
+| **Comment**        | Tối đa 1000 ký tự                  |
+| **Images**         | Tối đa 5 ảnh per review            |
+| **Kích Thước Ảnh** | Max 10MB per file                  |
+| **Định Dạng Ảnh**  | JPEG, PNG, GIF, WebP               |
+
+### Tính Toán Average Rating
+
+```javascript
+// Backend tự động tính:
+averageRating = sum(ratings) / count(reviews);
+
+// Ví dụ:
+// 3 reviews: 5, 4, 5 sao
+// Average: (5 + 4 + 5) / 3 = 4.67 sao
+```
+
+---
+
+## 📸 Upload Hình Ảnh
+
+### Dịch Vụ Upload
+
+Ứng dụng tích hợp **upanhnhanh.com** API cho upload hình ảnh:
+
+```javascript
+// Upload Service Flow
+User submits image
+    ↓
+Multer validates file (type, size)
+    ↓
+Send to upanhnhanh API
+    ↓
+Get CDN URL back
+    ↓
+Save URL to MongoDB
+    ↓
+Return URL to frontend
+```
+
+### Hạn Chế Upload
+
+| Giới Hạn       | Giá Trị              |
+| -------------- | -------------------- |
+| File size      | Max 10MB             |
+| Ảnh per review | Max 5                |
+| Ảnh per center | 1                    |
+| Định dạng      | JPEG, PNG, GIF, WebP |
+
+### Cấu Hình Upload
+
+```env
+# File: back-end/.env
+APIKEY=your-upanhnhanh-api-key
+APIURL=https://upanhnhanh.com/api/v1
+```
+
+**Upload Service (back-end/src/services/uploadService.js):**
+
+```javascript
+// Gửi file đến upanhnhanh
+const uploadedUrl = await uploadService.uploadImage(file);
+```
+
+---
+
+## 🚦 Rate Limiting
+
+### Mục Đích
+
+Ngăn chặn spam, brute-force attacks, và lạm dụng API.
+
+### Giới Hạn
+
+| Endpoint             | Limit      | Window  | Bỏ Qua |
+| -------------------- | ---------- | ------- | ------ |
+| POST /centers        | 5 requests | 1 giờ   | Admin  |
+| POST /reviews        | 1 request  | 1 giờ   | Admin  |
+| POST /admin/login    | 5 attempts | 15 phút | -      |
+| POST /admin/register | 3 attempts | 1 giờ   | -      |
+
+### Xác Định Bằng IP
+
+```javascript
+// Rate limiter dùng client IP address:
+- Nếu là proxy: lấy từ X-Forwarded-For header
+- Không thì: lấy socket.remoteAddress
+
+app.set("trust proxy", 1); // Thêm ở app.js
+```
+
+### Response Khi Bị Limit
+
+```json
+{
+  "status": 429,
+  "message": "Quá nhiều request, vui lòng thử lại sau 1 giờ",
+  "retryAfter": 3600
+}
+```
+
+---
+
+## 🌐 Deploy Lên Vercel (Frontend)
+
+### Yêu Cầu
+
+- Vercel account (free)
+- GitHub repository
+- Backend API đã deployed
+
+### Bước 1: Push lên GitHub
+
+```bash
+git add .
+git commit -m "Prepare for Vercel deployment"
+git push origin main
+```
+
+### Bước 2: Connect với Vercel
+
+1. Truy cập [vercel.com](https://vercel.com)
+2. Click "New Project"
+3. Import GitHub repository
+4. Select folder: `./front-end`
+
+### Bước 3: Thiết Lập Environment Variables
+
+Trong Vercel Dashboard → Project Settings → Environment Variables:
+
+```env
+NEXT_PUBLIC_API_URL=https://your-backend-api.com
+```
+
+### Bước 4: Deploy
+
+Click "Deploy" và chờ hoàn tất (~2-3 phút)
+
+### Kiểm Tra Deployment
+
+```bash
+https://your-project-name.vercel.app
+```
+
+### File Cấu Hình
+
+- **vercel.json** - Vercel configuration
+- **next.config.js** - Next.js optimization
+- **middleware.ts** - Custom middleware
+
+---
+
+## 🔧 Troubleshooting
+
+### 🗄️ Database Issues
+
+**Lỗi: "MongoServerSelectionError"**
+
+```
+❌ MongoDB connection failed
+
+✅ Giải pháp:
+1. Kiểm tra MongoDB đã chạy?
+   - Windows: mongod
+   - Linux: systemctl start mongod
+
+2. Kiểm tra MONGODB_URI trong .env
+   - Local: mongodb://localhost:27017/giasu-reviews
+   - Atlas: mongodb+srv://user:pass@cluster...
+
+3. Kiểm tra firewall/network
+```
+
+**Lỗi: "Authentication failed"**
+
+```
+❌ MongoDB Atlas connection failed
+
+✅ Giải pháp:
+1. Kiểm tra MongoDB Atlas username/password
+2. Thêm IP address vào Atlas IP Whitelist
+3. Copy connection string chính xác từ Atlas
+```
+
+### 🔌 API Connection Issues
+
+**Lỗi: CORS blocked**
+
+```
+❌ Access to XMLHttpRequest from 'http://localhost:3000'
+   has been blocked by CORS policy
+
+✅ Giải pháp:
+1. Kiểm tra CLIENT_URL trong back-end/.env
+   CLIENT_URL=http://localhost:3000
+
+2. Kiểm tra CORS middleware đã bật trong app.js
+
+3. Restart backend server
+```
+
+**Lỗi: "Cannot connect to API"**
+
+```
+❌ API URL không truy cập được
+
+✅ Giải pháp:
+1. Backend có chạy?
+   npm run dev trong back-end/
+
+2. Kiểm tra NEXT_PUBLIC_API_URL trong front-end/.env.local
+
+3. Thử: http://localhost:5000 trong browser
+   - Nếu thấy "Server is running" → Backend OK
+```
+
+### 🔐 Authentication Issues
+
+**Lỗi: "Invalid token"**
+
+```
+❌ JWT token không hợp lệ
+
+✅ Giải pháp:
+1. Logout rồi login lại
+2. Xóa cookies: DevTools → Application → Cookies
+3. Kiểm tra JWT_SECRET trong .env
+```
+
+**Lỗi: "401 Unauthorized"**
+
+```
+❌ Yêu cầu không có authorization
+
+✅ Giải pháp:
+1. Đang đăng nhập rồi chưa?
+2. Token hết hạn? Logout → Login lại
+3. Kiểm tra Authorization header trong request
+```
+
+### 📸 Upload Issues
+
+**Lỗi: "File too large"**
+
+```
+❌ File vượt quá 10MB
+
+✅ Giải pháp:
+1. Giảm kích thước file
+2. Nén ảnh: online tools hoặc Photoshop
+3. Chỉ chọn file JPEG/PNG
+```
+
+**Lỗi: "Upload failed"**
+
+```
+❌ Upload service không hoạt động
+
+✅ Giải pháp:
+1. Kiểm tra APIKEY, APIURL trong back-end/.env
+2. API key có hợp lệ không?
+3. Kiểm tra network connection
+```
+
+### 🚀 Vercel Deployment Issues
+
+**Lỗi: "Build failed"**
+
+```
+❌ Deployment bị lỗi
+
+✅ Giải pháp:
+1. Kiểm tra logs trong Vercel Dashboard
+2. Chạy npm run build locally để test
+3. Kiểm tra Node.js version
+4. Chạy npm run typecheck
+```
+
+**Lỗi: "API request failed on Vercel"**
+
+```
+❌ Frontend không kết nối được backend
+
+✅ Giải pháp:
+1. Kiểm tra NEXT_PUBLIC_API_URL trỏ đến backend công khai
+2. Backend có CORS cho phép domain Vercel không?
+3. Backend server có chạy không?
+```
+
+### 🐛 Other Common Issues
+
+**Lỗi: "Port already in use"**
+
+```bash
+❌ Port 5000 hoặc 3000 đang sử dụng
+
+# Tìm process sử dụng port (Windows PowerShell):
+netstat -ano | findstr :5000
+
+# Kill process (thay <PID> bằng Process ID):
+taskkill /PID <PID> /F
+
+# Hoặc chỉ định port khác:
+PORT=5001 npm run dev
+```
+
+**Lỗi: "node_modules issues"**
+
+```bash
+# Xóa cache npm
+npm cache clean --force
+
+# Xóa node_modules
+rm -r node_modules
+# Windows: rmdir /s node_modules
+
+# Reinstall
+npm install
+```
+
+---
+
+## 👥 Đóng Góp
+
+Chúng tôi hoan nghênh mọi đóng góp từ cộng đồng!
+
+### Quy Trình Đóng Góp
+
+1. **Fork** repository
+2. **Clone** fork của bạn
+   ```bash
+   git clone https://github.com/yourusername/giasu-reviews.git
+   ```
+3. **Tạo branch** cho feature
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+4. **Commit** changes
+   ```bash
+   git commit -m "Add your feature description"
+   ```
+5. **Push** đến branch
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+6. **Tạo Pull Request** với mô tả chi tiết
+
+### Hướng Dẫn Code
+
+- ✅ TypeScript cho frontend
+- ✅ JSDoc comments
+- ✅ Consistent code style
+- ✅ Kiểm tra lỗi: `npm run lint`
+
+### Issue Report
+
+Nếu tìm thấy bug:
+
+1. Kiểm tra issue đã tồn tại chưa
+2. Tạo issue mới với:
+   - Mô tả rõ ràng
+   - Bước tái hiện
+   - Expected vs Actual behavior
+   - Environment (OS, Node version, etc.)
+
+---
+
+## 📞 Liên Hệ
+
+| Kêu Gọi           | Thông Tin                                                                  |
+| ----------------- | -------------------------------------------------------------------------- |
+| **Email**         | support@giasu-reviews.com                                                  |
+| **GitHub Issues** | [Report bugs](https://github.com/yourusername/giasu-reviews/issues)        |
+| **Discussions**   | [Ask questions](https://github.com/yourusername/giasu-reviews/discussions) |
+
+---
+
+## 📄 License
+
+Dự án này được cấp phép dưới **ISC License** - xem file [LICENSE](LICENSE) để chi tiết.
+
+---
+
+## 🙏 Cảm Ơn
+
+Cảm ơn tất cả những người đã đóng góp, báo cáo bug, và hỗ trợ dự án!
+
+```
+┌────────────────────────────────────────┐
+│  Được xây dựng với ❤️ cho cộng đồng    │
+│  Gia Sư Reviews © 2024                │
+└────────────────────────────────────────┘
+```
+
+---
+
+## 📚 Tài Liệu Tham Khảo
+
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Express.js Guide](https://expressjs.com/)
+- [MongoDB Manual](https://docs.mongodb.com/manual/)
+- [shadcn/ui Components](https://ui.shadcn.com/)
+- [Tailwind CSS](https://tailwindcss.com/docs)
+- [JWT.io](https://jwt.io/)
+
+---
+
+**Happy Coding! 🚀**
 
 ### Back-end
 

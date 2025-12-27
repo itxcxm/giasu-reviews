@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
-import { Navbar } from '@/components/navbar';
-import { AdminGuard } from '@/components/AdminGuard';
+import { AdminNavbar } from '@/components/AdminNavbar';
 
 export const metadata: Metadata = {
   title: 'Gia sư Reviews - Admin',
@@ -13,9 +12,9 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AdminGuard>
-      <Navbar />
-      {children}
-    </AdminGuard>
+    <>
+      <AdminNavbar />
+      <main className="container mx-auto px-4 py-8">{children}</main>
+    </>
   );
 }

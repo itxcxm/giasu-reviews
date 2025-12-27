@@ -1,8 +1,10 @@
+import { Navbar } from '@/components/navbar';
 import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import { Toaster } from '@/components/ui/sonner';
 
-const inter = Inter({ 
+const inter = Inter({
   subsets: ['latin', 'vietnamese'],
   display: 'swap',
   variable: '--font-inter',
@@ -69,7 +71,9 @@ export default function RootLayout({
     <html lang="vi" className={inter.variable}>
       <body className={`${inter.className} antialiased`}>
         <div className="min-h-screen flex flex-col">
-          {children}
+          <Navbar />
+          <main className="flex-grow">{children}</main>
+          <Toaster richColors position="top-right" duration={5000} />
         </div>
       </body>
     </html>

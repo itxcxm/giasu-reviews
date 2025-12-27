@@ -1,18 +1,16 @@
 import jwt from "jsonwebtoken";
-import Admin from "../models/Admin.js";
+import User from "../models/User.js";
 import {
   HTTP_STATUS,
   JWT_CONFIG,
   getCookieOptions,
 } from "../utils/constants.js";
 
-/**
- * Hàm tiện ích: Lấy access token từ cookie hoặc header
- */
+// Hàm tiện ích để lấy access token từ request.
+// Ưu tiên lấy từ cookie trước, nếu không có thì lấy từ header 'Authorization'.
 const getAccessToken = (req) => {
   let token = req.cookies?.accessToken;
   if (!token) {
-    // Lấy từ header dạng Bearer
     const authHeader = req.headers?.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       token = authHeader.substring(7);
@@ -21,12 +19,8 @@ const getAccessToken = (req) => {
   return token;
 };
 
-/**
- * Hàm set cookie xác thực (access/refresh token) cho response
- * Sử dụng getCookieOptions() để tự động xử lý cross-domain (sameSite: "none" khi cross-domain)
- */
+// Hàm tiện ích để thiết lập access token và refresh token vào cookie của response.
 const setAuthCookies = (res, accessToken, refreshToken) => {
-  // Sử dụng getCookieOptions() để tự động xử lý sameSite cho cross-domain
   const cookieOptions = getCookieOptions();
   res.cookie("accessToken", accessToken, {
     ...cookieOptions,
@@ -38,194 +32,175 @@ const setAuthCookies = (res, accessToken, refreshToken) => {
   });
 };
 
-/**
- * Hàm attach (gắn) thông tin admin vào request - để các middleware/controller xử lý
- */
-const attachAdminToRequest = (req, admin) => {
-  req.admin = admin;
-  req.user = admin;
-  req.userId = admin?._id || null;
-  req.adminId = admin?._id || null;
+// Gắn thông tin người dùng vào đối tượng request để các middleware sau có thể sử dụng.
+const attachUserToRequest = (req, user) => {
+  req.user = user;
+  req.userId = user?._id || null;
 };
 
-/**
- * Middleware chính: Xác thực token/refresh token, attach admin, tự động refresh token nếu cần
- * Nếu optional = true, chỉ gắn admin hoặc null mà không trả lỗi (cho middleware optional)
- */
-const handleAuth = async (req, res, next, options = { optional: false }) => {
+// Middleware xử lý xác thực chính, có thể tùy chỉnh thông qua options.
+// Luồng hoạt động:
+// 1. Lấy access token.
+// 2. Nếu không có token: kiểm tra xem có cho phép truy cập tùy chọn không (optional).
+// 3. Nếu có token: xác thực nó.
+//    - Nếu hợp lệ: kiểm tra vai trò (role), gắn user vào request, và cho đi tiếp.
+//    - Nếu hết hạn (expired): thử dùng refresh token.
+//      - Nếu có refresh token: xác thực nó.
+//        - Nếu refresh token hợp lệ: tạo cặp token mới, set vào cookie, gắn user vào request, và cho đi tiếp.
+//        - Nếu refresh token không hợp lệ: từ chối truy cập.
+//      - Nếu không có refresh token: từ chối truy cập.
+const handleAuth = async (req, res, next, options = { optional: false, requiredRole: null }) => {
   try {
     const token = getAccessToken(req);
 
+    // Nếu không có token
     if (!token) {
       if (options.optional) {
-        attachAdminToRequest(req, null);
+        attachUserToRequest(req, null); // Gắn user là null và cho qua
         return next();
       }
       return res.status(HTTP_STATUS.UNAUTHORIZED).json({
         success: false,
-        message: "Token không được cung cấp",
+        message: "Yêu cầu cần token để xác thực.",
       });
     }
 
     try {
-      // Giải mã access token
-      const decoded = jwt.verify(token, JWT_CONFIG.SECRET);
-      const admin = await Admin.findById(decoded.id).select("-password");
-      if (!admin) {
-        if (options.optional) {
-          attachAdminToRequest(req, null);
-          return next();
-        }
+      // Thử xác thực access token
+      const decoded = jwt.verify(token, JWT_CONFIG.ACCESS_TOKEN_SECRET);
+      const user = await User.findById(decoded.id).select("-password");
+      if (!user) {
         return res.status(HTTP_STATUS.UNAUTHORIZED).json({
           success: false,
-          message: "Token không hợp lệ - Admin không tồn tại",
+          message: "Token không hợp lệ, người dùng không tồn tại.",
         });
       }
-      // Kiểm tra role admin
-      if (admin.role !== "admin") {
-        if (options.optional) {
-          attachAdminToRequest(req, null);
-          return next();
-        }
+      
+      // Kiểm tra vai trò yêu cầu (nếu có)
+      // Admin có quyền truy cập vào tất cả các route yêu cầu vai trò khác.
+      if (options.requiredRole && user.role !== options.requiredRole && user.role !== "admin") {
         return res.status(HTTP_STATUS.FORBIDDEN).json({
           success: false,
-          message: "Chỉ admin mới có quyền truy cập",
+          message: `Bạn không có quyền truy cập. Yêu cầu vai trò: ${options.requiredRole}.`,
         });
       }
-      attachAdminToRequest(req, admin);
+      attachUserToRequest(req, user);
       return next();
     } catch (accessTokenError) {
-      // Nếu token hết hạn hoặc không hợp lệ, thử xác thực bằng refresh token
-      if (
-        accessTokenError.name === "TokenExpiredError" ||
-        accessTokenError.name === "JsonWebTokenError"
-      ) {
-        // Refresh token logic
+      // Nếu access token hết hạn hoặc lỗi
+      if (accessTokenError.name === "TokenExpiredError" || accessTokenError.name === "JsonWebTokenError") {
         const refreshToken = req.cookies?.refreshToken;
         if (!refreshToken) {
           if (options.optional) {
-            attachAdminToRequest(req, null);
+            attachUserToRequest(req, null);
             return next();
           }
           return res.status(HTTP_STATUS.UNAUTHORIZED).json({
             success: false,
-            message: "Token đã hết hạn",
+            message: "Phiên đăng nhập đã hết hạn.",
           });
         }
         try {
-          // Giải mã refresh token
-          const decodedRefreshToken = jwt.verify(
-            refreshToken,
-            JWT_CONFIG.REFRESH_SECRET
-          );
-          const admin = await Admin.findById(decodedRefreshToken.id).select(
-            "-password"
-          );
-          // Kiểm tra tồn tại và quyền admin
-          if (admin && admin.role === "admin") {
-            // Sinh access token & refresh token mới
-            const newAccessToken = jwt.sign(
-              { id: admin._id },
-              JWT_CONFIG.SECRET,
-              { expiresIn: JWT_CONFIG.EXPIRES_IN }
-            );
-            const newRefreshToken = jwt.sign(
-              { id: admin._id },
-              JWT_CONFIG.REFRESH_SECRET,
-              { expiresIn: JWT_CONFIG.REFRESH_EXPIRES_IN }
-            );
+          // Thử xác thực refresh token
+          const decodedRefreshToken = jwt.verify(refreshToken, JWT_CONFIG.REFRESH_TOKEN_SECRET);
+          const user = await User.findById(decodedRefreshToken.id).select("-password");
+          if (user) {
+            // Kiểm tra lại vai trò với user lấy từ refresh token
+            if (options.requiredRole && user.role !== options.requiredRole && user.role !== "admin") {
+               return res.status(HTTP_STATUS.FORBIDDEN).json({
+                success: false,
+                message: `Bạn không có quyền truy cập. Yêu cầu vai trò: ${options.requiredRole}.`,
+              });
+            }
+            // Tạo cặp token mới và gửi lại cho client
+            const newAccessToken = generateToken(user);
+            const newRefreshToken = generateRefreshToken(user); // Tạo mới cả refresh token để tăng bảo mật
             setAuthCookies(res, newAccessToken, newRefreshToken);
-            attachAdminToRequest(req, admin);
+            attachUserToRequest(req, user);
             return next();
           } else {
-            if (options.optional) {
-              attachAdminToRequest(req, null);
-              return next();
-            }
-            return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+             return res.status(HTTP_STATUS.UNAUTHORIZED).json({
               success: false,
-              message: "Token không hợp lệ - Admin không tồn tại",
+              message: "Refresh token không hợp lệ, người dùng không tồn tại.",
             });
           }
         } catch (refreshTokenError) {
-          if (options.optional) {
-            attachAdminToRequest(req, null);
-            return next();
-          }
+          // Nếu refresh token cũng hết hạn hoặc lỗi
           return res.status(HTTP_STATUS.UNAUTHORIZED).json({
             success: false,
-            message: "Token đã hết hạn",
+            message: "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.",
           });
         }
       } else {
-        // Các lỗi khác không liên quan tới token
+        // Ném các lỗi không mong muốn khác
         throw accessTokenError;
       }
     }
   } catch (error) {
-    // Nếu middleware optional thì không trả lỗi, chỉ gắn null
     if (options.optional) {
-      attachAdminToRequest(req, null);
+      attachUserToRequest(req, null);
       return next();
     }
     console.error(options.errorLogLabel || "Lỗi middleware xác thực:", error);
     return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
       success: false,
-      message: "Lỗi xác thực",
+      message: "Lỗi hệ thống trong quá trình xác thực.",
     });
   }
 };
 
-// Middleware xác thực Admin (có refresh nếu cần)
-// Sử dụng cho các route cần xác thực bắt buộc
-export const authMiddleware = (req, res, next) =>
-  handleAuth(req, res, next, {
-    optional: false,
-    errorLogLabel: "Auth middleware error:",
-  });
-
-// Middleware kiểm tra quyền admin và xác thực token (thường như authMiddleware, nhưng để tách biệt logic nếu sau này bổ sung)
+// Middleware yêu cầu người dùng phải là admin.
 export const adminMiddleware = (req, res, next) =>
   handleAuth(req, res, next, {
     optional: false,
-    errorLogLabel: "Admin middleware error:",
+    requiredRole: "admin",
+    errorLogLabel: "Lỗi middleware của Admin:",
   });
 
-/**
- * Hàm tiện ích sinh JWT token cho adminId
- */
-export const generateToken = (adminId) => {
-  return jwt.sign({ id: adminId }, JWT_CONFIG.SECRET, {
+// Middleware yêu cầu người dùng phải có vai trò 'user'. Admin cũng được chấp nhận.
+export const userMiddleware = (req, res, next) =>
+  handleAuth(req, res, next, {
+    optional: false,
+    requiredRole: "user",
+    errorLogLabel: "Lỗi middleware của User:",
+  });
+
+// Middleware yêu cầu người dùng phải đăng nhập (bất kỳ vai trò nào).
+export const authMiddleware = (req, res, next) =>
+  handleAuth(req, res, next, {
+    optional: false,
+    requiredRole: null, // Bất kỳ người dùng nào đã xác thực đều được phép
+    errorLogLabel: "Lỗi middleware xác thực chung:",
+  });
+
+// Middleware xác thực tùy chọn: nếu người dùng có token hợp lệ, `req.user` sẽ được gắn.
+// Nếu không, vẫn cho qua nhưng `req.user` sẽ là null. Hữu ích cho các route công khai có thể hiển thị thêm thông tin cho người dùng đã đăng nhập.
+export const optionalAuthMiddleware = (req, res, next) =>
+  handleAuth(req, res, next, {
+    optional: true,
+    errorLogLabel: "Lỗi middleware xác thực tùy chọn:",
+  });
+
+// Hàm tạo access token.
+export const generateToken = (user) => {
+  return jwt.sign({ id: user._id, role: user.role }, JWT_CONFIG.ACCESS_TOKEN_SECRET, {
     expiresIn: JWT_CONFIG.EXPIRES_IN,
   });
 };
 
-/**
- * Hàm tiện ích sinh refresh token cho adminId
- */
-export const generateRefreshToken = (adminId) => {
-  return jwt.sign({ id: adminId }, JWT_CONFIG.REFRESH_SECRET, {
+// Hàm tạo refresh token.
+export const generateRefreshToken = (user) => {
+  return jwt.sign({ id: user._id, role: user.role }, JWT_CONFIG.REFRESH_TOKEN_SECRET, {
     expiresIn: JWT_CONFIG.REFRESH_EXPIRES_IN,
   });
 };
 
-/**
- * Middleware xác thực không bắt buộc: chỉ kiểm tra, nếu không hợp lệ thì req.admin = null, không trả lỗi
- * Thường dùng cho các route muốn biết user có đăng nhập hay chưa
- */
-export const optionalAuthMiddleware = (req, res, next) =>
-  handleAuth(req, res, next, {
-    optional: true,
-    errorLogLabel: "Optional auth middleware error:",
-  });
-
-/**
- * Hàm tiện ích xác thực & giải mã JWT token (access token)
- */
+// Hàm xác minh một token bất kỳ.
 export const verifyToken = (token) => {
   try {
-    return jwt.verify(token, JWT_CONFIG.SECRET);
+    return jwt.verify(token, JWT_CONFIG.SECRET); // Lưu ý: SECRET này có thể cần thay đổi tùy theo loại token
   } catch (error) {
     throw error;
   }
 };
+

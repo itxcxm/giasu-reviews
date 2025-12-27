@@ -1,7 +1,7 @@
 'use client';
 
 // Các import của thư viện cần thiết
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
-import { centersAPI } from '@/lib/api';
+import { centersApi, userApi } from '@/lib/api';
 
 // Component chính cho trang Thêm Trung Tâm
 export default function AddCenterPage() {
@@ -31,6 +31,28 @@ export default function AddCenterPage() {
     phone: '',
     website: '',
   });
+
+  // Trạng thái authentication
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Check authentication khi component mount
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      setAuthLoading(true);
+      const response = await userApi.checkAuth();
+      setIsAuthenticated(response.authenticated);
+    } catch (error) {
+      console.error('Auth check error:', error);
+      setIsAuthenticated(false);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   // Xử lý thay đổi dữ liệu đầu vào trong form
   const handleInputChange = (
@@ -162,7 +184,7 @@ export default function AddCenterPage() {
       setLoading(true);
 
       // Gửi file trực tiếp thay vì base64
-      const response = await centersAPI.createCenter({
+      const response = await centersApi.createCenter({
         name: formData.name.trim(),
         address: formData.address.trim() || undefined,
         phone: formData.phone.trim() || undefined,
@@ -196,6 +218,16 @@ export default function AddCenterPage() {
   // Xử lý gửi form thêm trung tâm
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Kiểm tra trạng thái đăng nhập
+    if (isAuthenticated === false) {
+      toast({
+        title: 'Yêu cầu đăng nhập',
+        description: 'Người dùng chưa đăng nhập. Vui lòng đăng nhập để thêm trung tâm.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     // Validation
     if (!formData.name.trim()) {
@@ -387,8 +419,13 @@ export default function AddCenterPage() {
 
                 {/* Nhóm nút Thêm Trung Tâm và Hủy */}
                 <div className="flex gap-4 pt-4">
-                  <Button type="submit" size="lg" className="flex-1" disabled={loading}>
-                    {loading ? 'Đang xử lý...' : 'Thêm Trung Tâm'}
+                  <Button 
+                    type="submit" 
+                    size="lg" 
+                    className="flex-1" 
+                    disabled={loading || authLoading || isAuthenticated === false}
+                  >
+                    {authLoading ? 'Đang kiểm tra...' : loading ? 'Đang xử lý...' : 'Thêm Trung Tâm'}
                   </Button>
                   <Button
                     type="button"
@@ -400,6 +437,18 @@ export default function AddCenterPage() {
                     Hủy
                   </Button>
                 </div>
+
+                {/* Thông báo nếu chưa đăng nhập */}
+                {isAuthenticated === false && !authLoading && (
+                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-red-700 text-sm">
+                      <strong>Lưu ý:</strong> Bạn cần đăng nhập để thêm trung tâm. 
+                      <Link href="/login" className="text-red-600 hover:text-red-800 underline ml-1">
+                        Đăng nhập ngay
+                      </Link>
+                    </p>
+                  </div>
+                )}
               </form>
             </CardContent>
           </Card>

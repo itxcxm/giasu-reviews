@@ -106,9 +106,9 @@ export interface Center {
   website?: string;
   image?: string;
   rating: number;
-  reviewCount: number;
+  totalReviews: number;
+  averageRating: number;
   isVerified?: boolean;
-  reviews?: Review[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -120,11 +120,14 @@ export interface Review {
   comment?: string;
   image?: string;
   images?: string[];
-  reviewerName?: string;
   createdAt?: string;
   updatedAt?: string;
   centerId?: string;
   centerName?: string;
+  user: {
+    _id: string;
+    name: string;
+  }
 }
 
 export interface CreateCenterData {
@@ -140,11 +143,10 @@ export interface CreateReviewData {
   comment?: string;
   image?: string;
   images?: string[] | File[];
-  reviewerName?: string;
 }
 
 // API Functions
-export const centersAPI = {
+export const centersApi = {
   
   // Lấy danh sách centers
   async getCenters(params?: {
@@ -168,26 +170,6 @@ export const centersAPI = {
     return response.data;
   },
 
-  // Lấy tất cả centers (dành cho admin, có phân trang/filter)
-  async getAllCenters(params?: {
-    search?: string;
-    sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
-    page?: number;
-    limit?: number;
-  }): Promise<{ success: boolean; data: Center[]; pagination?: any }> {
-    const response = await apiClient.get('/api/centers/all', {
-      params: {
-        search: params?.search,
-        sortBy: params?.sortBy,
-        sortOrder: params?.sortOrder,
-        page: params?.page,
-        limit: params?.limit,
-      },
-    });
-    return response.data;
-  },
-
   // Lấy center theo ID
   async getCenterById(id: string): Promise<{ success: boolean; data: Center }> {
     const response = await apiClient.get(`/api/centers/${id}`);
@@ -195,8 +177,8 @@ export const centersAPI = {
   },
 
   // Tạo center mới
-  async createCenter(data: CreateCenterData & { imageFile?: File; isAdmin?: boolean }): Promise<{ success: boolean; data: Center; message?: string }> {
-    const endpoint = data.isAdmin ? '/api/centers/admin/create' : '/api/centers';
+  async createCenter(data: CreateCenterData & { imageFile?: File; }): Promise<{ success: boolean; data: Center; message?: string }> {
+    const endpoint = '/api/centers';
     
     if (data.imageFile) {
       const formData = new FormData();
@@ -219,11 +201,10 @@ export const centersAPI = {
   },
 
   // Thêm review cho center
-  async addReview(centerId: string, data: CreateReviewData & { images?: File[] }): Promise<{ success: boolean; data: Center; message?: string }> {
+  async addReview(centerId: string, data: CreateReviewData & { images?: File[] }): Promise<{ success: boolean; data: Review; message?: string }> {
     if (data.images && data.images.length > 0) {
       const formData = new FormData();
       formData.append('comment', data.comment || '');
-      formData.append('reviewerName', data.reviewerName || '');
       
       data.images.forEach((file) => {
         formData.append('images', file);
@@ -239,28 +220,6 @@ export const centersAPI = {
       const response = await apiClient.post(`/api/centers/${centerId}/reviews`, data);
       return response.data;
     }
-  },
-
-  // Lấy tất cả reviews từ tất cả centers (admin)
-  async getAllReviews(params?: {
-    search?: string;
-    sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
-  }): Promise<{ success: boolean; data: Review[] }> {
-    const response = await apiClient.get('/api/centers/reviews/all', {
-      params: {
-        search: params?.search,
-        sortBy: params?.sortBy,
-        sortOrder: params?.sortOrder,
-      },
-    });
-    return response.data;
-  },
-
-  // Xóa review từ center (admin)
-  async deleteReview(centerId: string, reviewId: string): Promise<{ success: boolean; message?: string }> {
-    const response = await apiClient.delete(`/api/centers/${centerId}/reviews/${reviewId}`);
-    return response.data;
   },
 
   // Cập nhật center (admin)
@@ -283,7 +242,7 @@ export const centersAPI = {
 };
 
 // Admin API Functions
-export const adminAPI = {
+export const adminApi = {
   // Đăng xuất admin
   async logout(): Promise<{ success: boolean; message: string }> {
     const response = await apiClient.post('/api/admin/logout');
@@ -295,15 +254,36 @@ export const adminAPI = {
     return response.data;
   },
 
-  // Đăng ký admin
-  async register(name: string, email: string, password: string): Promise<{ success: boolean; message: string; data?: { admin: any } }> {
-    const response = await apiClient.post('/api/admin/register', { name, email, password });
-    return response.data;
-  },
-
   // Lấy thông tin admin hiện tại
   async getCurrentAdmin(): Promise<{ success: boolean; message: string; data?: { admin: any } }> {
     const response = await apiClient.get('/api/admin/me');
+    return response.data;
+  },
+
+  // Lấy danh sách người dùng
+  async getUsers(params?: { search?: string; status?: string }): Promise<{ success: boolean; data: any[] }> {
+    const response = await apiClient.get('/api/admin/users', { params });
+    return response.data;
+  },
+
+  // Xóa người dùng
+  async deleteUser(userId: string): Promise<void> {
+    await apiClient.delete(`/api/admin/users/${userId}`);
+  },
+
+  // Cập nhật trạng thái người dùng
+  async updateUserStatus(userId: string, status: 'active' | 'inactive' | 'banned'): Promise<void> {
+    await apiClient.patch(`/api/admin/users/${userId}/status`, { status });
+  },
+
+  // Cập nhật quyền người dùng
+  async updateUserPermissions(userId: string, permissionIds: string[]): Promise<void> {
+    await apiClient.put(`/api/admin/users/${userId}/permissions`, { permissionIds });
+  },
+
+  // Lấy danh sách quyền
+  async getPermissions(): Promise<{ success: boolean; data: any[] }> {
+    const response = await apiClient.get('/api/admin/permissions');
     return response.data;
   },
 
@@ -357,6 +337,116 @@ export const adminAPI = {
     }
   },
 };
+
+// User API Functions
+export const userApi = {
+  // Đăng xuất user
+  async logout(): Promise<{ success: boolean; message: string }> {
+    const response = await apiClient.post('/api/user/logout');
+    return response.data;
+  },
+  // Đăng nhập user
+  async login(email: string, password: string): Promise<{ success: boolean; message: string; data?: { user: any; token: string } }> {
+    const response = await apiClient.post('/api/user/login', { email, password });
+    return response.data;
+  },
+
+  // Đăng ký user
+  async register(name: string, email: string, password: string): Promise<{ success: boolean; message: string; data?: { user: any } }> {
+    const response = await apiClient.post('/api/user/register', { name, email, password });
+    return response.data;
+  },
+
+  // Lấy thông tin user hiện tại
+  async getCurrentUser(): Promise<{ success: boolean; message: string; data?: { user: any } }> {
+    const response = await apiClient.get('/api/user/me');
+    return response.data;
+  },
+
+  // Kiểm tra đăng nhập
+  // Endpoint này luôn trả về success: true, authenticated: true/false
+  // Lưu ý: Middleware đã xử lý redirect tự động, hàm này chỉ dùng khi cần kiểm tra auth ở client-side
+  async checkAuth(): Promise<{ success: boolean; authenticated: boolean; message: string; data?: { user: any } }> {
+    try {
+      const response = await apiClient.get('/api/user/check-auth');
+      
+      // Debug log (chỉ trong development)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Check auth API response:', {
+          status: response.status,
+          data: response.data,
+          headers: response.headers,
+        });
+      }
+      
+      // Đảm bảo response có data
+      if (!response || !response.data) {
+        console.error('Invalid API response:', response);
+        return {
+          success: false,
+          authenticated: false,
+          message: 'Response không hợp lệ từ server',
+        };
+      }
+      
+      return {
+        success: response.data?.success ?? true,
+        authenticated: response.data?.authenticated ?? false,
+        message: response.data?.message || '',
+        data: response.data?.data,
+      };
+    } catch (error: any) {
+      // Log lỗi chi tiết
+      console.error('Check auth API error:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+        code: error?.code,
+      });
+      
+      // Nếu có lỗi, trả về authenticated: false
+      return {
+        success: false,
+        authenticated: false,
+        message: error?.response?.data?.message || error?.message || 'Không thể kiểm tra đăng nhập',
+      };
+    }
+  },
+};
+
+export const reviewsApi = {
+  // Lấy tất cả reviews từ tất cả centers (admin)
+  async getAllReviews(params?: {
+    search?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }): Promise<{ success: boolean; data: Review[] }> {
+    const response = await apiClient.get('/api/reviews', {
+      params: {
+        search: params?.search,
+        sortBy: params?.sortBy,
+        sortOrder: params?.sortOrder,
+      },
+    });
+    return response.data;
+  },
+
+  // Xóa review từ center (admin)
+  async deleteReview(reviewId: string): Promise<{ success: boolean; message?: string }> {
+    const response = await apiClient.delete(`/api/reviews/${reviewId}`);
+    return response.data;
+  },
+
+  async getReviewsByUserId(userId: string): Promise<{ success: boolean; data: Review[] }> {
+    const response = await apiClient.get(`/api/reviews/user/${userId}`);
+    return response.data;
+  },
+
+  async getReviewsByCenterId(centerId: string): Promise<{ success: boolean; data: Review[] }> {
+    const response = await apiClient.get(`/api/reviews/center/${centerId}`);
+    return response.data;
+  },
+}
 
 // Helper function để upload image và lấy URL
 export const imageToBase64 = (file: File): Promise<string> => {

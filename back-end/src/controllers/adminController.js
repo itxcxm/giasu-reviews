@@ -1,131 +1,145 @@
-// Import các service và hàm tiện ích cần thiết
-import { AdminService } from "../services/adminServices.js";
-import { CentersService } from "../services/centersServices.js";
+// Import các service xử lý nghiệp vụ liên quan đến admin và trung tâm
+import { AdminService } from "../services/adminService.js";
+import { CentersService } from "../services/centersService.js";
+import { UserService } from "../services/userService.js";
+import Permission from "../models/Permission.js";
+
+// Import các hằng số và cấu hình dùng chung cho HTTP, Cookie và JWT
 import {
   HTTP_STATUS,
   getCookieOptions,
   JWT_CONFIG,
 } from "../utils/constants.js";
+
+// Import các hàm tạo access token và refresh token
 import { generateToken, generateRefreshToken } from "../middlewares/auth.js";
+
+// Thư viện xử lý JWT
 import jwt from "jsonwebtoken";
-import Admin from "../models/Admin.js";
 
-/*
- * Ghi chú tối ưu cho Vercel:
- * - Chỉ set các thuộc tính cookie an toàn cho môi trường production (httpOnly, sameSite, secure)
- * - Đảm bảo không trả về dữ liệu nhạy cảm trong response
- * - Gọn gàng phần xử lý try/catch, giảm log lỗi không cần thiết ở production
- * - Khởi tạo instance service bên ngoài class, tối ưu cold start nếu service không stateful, nhưng vẫn giữ nguyên ngữ cảnh cũ để tránh breaking.
- */
+// Model User để thao tác với dữ liệu người dùng trong database
+import User from "../models/User.js";
 
-// Khởi tạo instance các service
+// Khởi tạo instance của các service
 const adminService = new AdminService();
 const centersService = new CentersService();
+const userService = new UserService();
 
+/**
+ * Controller xử lý các chức năng liên quan đến Admin
+ */
 export class AdminController {
-    // Đăng xuất admin
-    logoutAdmin = async (req, res) => {
-      try {
-        // Xóa cookie accessToken và refreshToken bằng cách set lại với maxAge = 0
-        const cookieOptions = getCookieOptions();
-        res.cookie("accessToken", "", {
-          ...cookieOptions,
-          maxAge: 0,
-        });
-        res.cookie("refreshToken", "", {
-          ...cookieOptions,
-          maxAge: 0,
-        });
-        return res.status(HTTP_STATUS.OK).json({
-          success: true,
-          message: "Đăng xuất thành công",
-        });
-      } catch {
-        return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
-          success: false,
-          message: "Lỗi hệ thống khi đăng xuất",
-        });
-      }
-    };
   constructor() {
-    // Gán service vào class
     this.adminService = adminService;
     this.centersService = centersService;
+    this.userService = userService;
   }
-
-  // Đăng ký admin mới
-  registerAdmin = async (req, res) => {
+  getUsers = async (req, res) => {
     try {
-      const { name, email, password } = req.body || {};
-
-      // Kiểm tra đầu vào bắt buộc
-      if (!name || !email || !password) {
-        return res.status(HTTP_STATUS.BAD_REQUEST).json({
-          success: false,
-          message: "Tên, email và mật khẩu là bắt buộc",
-        });
-      }
-      // Kiểm tra độ dài mật khẩu
-      if (typeof password !== "string" || password.length < 6) {
-        return res.status(HTTP_STATUS.BAD_REQUEST).json({
-          success: false,
-          message: "Mật khẩu phải có ít nhất 6 ký tự",
-        });
-      }
-      // Kiểm tra định dạng email
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        return res.status(HTTP_STATUS.BAD_REQUEST).json({
-          success: false,
-          message: "Email không hợp lệ",
-        });
-      }
-
-      // Đăng ký tài khoản mới
-      const admin = await this.adminService.registerAdmin(
-        name,
-        email,
-        password
-      );
-
-      // Trả về kết quả đăng ký thành công (ẩn thông tin nhạy cảm)
-      return res.status(HTTP_STATUS.CREATED).json({
-        success: true,
-        message:
-          "Đăng ký thành công. Tài khoản của bạn đang chờ được kích hoạt bởi quản trị viên.",
-        data: {
-          admin: {
-            id: admin._id,
-            name: admin.name,
-            email: admin.email,
-            role: admin.role,
-            isActive: admin.isActive,
-          },
-        },
-      });
+      const { search, status } = req.query;
+      const users = await this.userService.getUsers({ search, status });
+      return res.status(HTTP_STATUS.OK).json({ success: true, data: users });
     } catch (error) {
-      // Xử lý lỗi email đã tồn tại hoặc lỗi conflict
-      // Trả về message đơn giản khi lỗi conflict, hạn chế log ra stdout cho production
-      if (error.message === "Email đã được sử dụng" || error.code === 11000) {
-        return res.status(HTTP_STATUS.CONFLICT).json({
-          success: false,
-          message: "Email đã được sử dụng",
-        });
-      }
-      // Lỗi hệ thống chung
       return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "Lỗi hệ thống khi đăng ký",
+        message: "Lỗi khi lấy danh sách người dùng",
+      });
+    }
+  };
+  getPermissions = async (req, res) => {
+    try {
+      const permissions = await Permission.find();
+      return res.status(HTTP_STATUS.OK).json({ success: true, data: permissions });
+    } catch (error) {
+      return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Lỗi khi lấy danh sách quyền",
+      });
+    }
+  };
+  deleteUser = async (req, res) => {
+    try {
+      const { id } = req.params;
+      await this.userService.deleteUser(id);
+      return res.status(HTTP_STATUS.OK).json({
+        success: true,
+        message: "Xóa người dùng thành công",
+      });
+    } catch (error) {
+      return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Lỗi khi xóa người dùng",
+      });
+    }
+  };
+  updateUserStatus = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      await this.userService.updateUserStatus(id, status);
+      return res.status(HTTP_STATUS.OK).json({
+        success: true,
+        message: "Cập nhật trạng thái người dùng thành công",
+      });
+    } catch (error) {
+      return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Lỗi khi cập nhật trạng thái người dùng",
+      });
+    }
+  };
+  updateUserPermissions = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { permissionIds } = req.body;
+      await this.userService.updateUserPermissions(id, permissionIds);
+      return res.status(HTTP_STATUS.OK).json({
+        success: true,
+        message: "Cập nhật quyền người dùng thành công",
+      });
+    } catch (error) {
+      return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Lỗi khi cập nhật quyền người dùng",
       });
     }
   };
 
-  // Đăng nhập admin
+  /**
+   * Đăng xuất admin
+   * - Xóa accessToken và refreshToken khỏi cookie
+   */
+  logoutAdmin = async (req, res) => {
+    try {
+      const cookieOptions = getCookieOptions();
+
+      // Ghi đè cookie với giá trị rỗng và thời gian sống = 0
+      res.cookie("accessToken", "", { ...cookieOptions, maxAge: 0 });
+      res.cookie("refreshToken", "", { ...cookieOptions, maxAge: 0 });
+
+      return res.status(HTTP_STATUS.OK).json({
+        success: true,
+        message: "Đăng xuất thành công",
+      });
+    } catch {
+      return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Lỗi hệ thống khi đăng xuất",
+      });
+    }
+  };
+  
+  /**
+   * Đăng nhập admin
+   * - Kiểm tra email, mật khẩu
+   * - Sinh accessToken và refreshToken
+   * - Lưu token vào cookie
+   */
   loginAdmin = async (req, res) => {
     try {
       const { email, password } = req.body || {};
 
-      // Kiểm tra đầu vào
+      // Validate dữ liệu đầu vào
       if (!email || !password) {
         return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
@@ -133,106 +147,57 @@ export class AdminController {
         });
       }
 
-      let admin;
-      try {
-        // Thực hiện đăng nhập và kiểm tra kích hoạt
-        admin = await this.adminService.loginAdmin(email, password);
-      } catch (error) {
-        // Nếu tài khoản chưa kích hoạt
-        if (error.message && error.message.includes("kích hoạt")) {
-          return res.status(HTTP_STATUS.FORBIDDEN).json({
-            success: false,
-            message: error.message,
-          });
-        }
-        // Các lỗi khác
-        throw error;
-      }
+      // Kiểm tra thông tin đăng nhập
+      const admin = await this.adminService.loginAdmin(email, password);
 
-      // Nếu không tìm thấy tài khoản hợp lệ
       if (!admin) {
         return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
-          message: "Email hoặc mật khẩu không chính xác",
+          message: "Email hoặc mật khẩu không chính xác hoặc bạn không phải là admin.",
         });
       }
 
-      // Set cookie an toàn cho môi trường production (phù hợp Vercel/HTTPS)
-      // Sử dụng getCookieOptions() để tự động xử lý cross-domain (sameSite: "none" khi cross-domain)
+      // Tạo token
+      const accessToken = generateToken(admin);
+      const refreshToken = generateRefreshToken(admin);
+
+      // Cấu hình cookie
       const cookieOptions = getCookieOptions();
+      const accessTokenOptions = { ...cookieOptions, maxAge: 15 * 60 * 1000 }; // 15 phút
+      const refreshTokenOptions = { ...cookieOptions, maxAge: 7 * 24 * 60 * 60 * 1000 }; // 7 ngày
 
-      // Sinh access token và refresh token cho admin
-      const accessToken = generateToken(admin._id);
-      const refreshToken = generateRefreshToken(admin._id);
-
-      // Log cookie options để debug (chỉ trong development hoặc khi cần)
-      if (
-        process.env.NODE_ENV === "development" ||
-        process.env.DEBUG_COOKIES === "true"
-      ) {
-        console.log("Cookie options:", JSON.stringify(cookieOptions, null, 2));
-        console.log("CLIENT_URL:", process.env.CLIENT_URL);
-        console.log("NODE_ENV:", process.env.NODE_ENV);
-      }
-
-      // Gửi cookie về client - ĐẢM BẢO set cookies trước khi gửi response
-      const accessTokenOptions = {
-        ...cookieOptions,
-        maxAge: 15 * 60 * 1000, // 15 phút
-      };
-      const refreshTokenOptions = {
-        ...cookieOptions,
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
-      };
-
+      // Gán token vào cookie
       res.cookie("accessToken", accessToken, accessTokenOptions);
       res.cookie("refreshToken", refreshToken, refreshTokenOptions);
 
-      // Đảm bảo cookies được gửi - kiểm tra headers đã được set
-      if (
-        process.env.NODE_ENV === "development" ||
-        process.env.DEBUG_COOKIES === "true"
-      ) {
-        const setCookieHeaders = res.getHeader("Set-Cookie");
-        console.log("Set-Cookie headers:", setCookieHeaders);
-      }
-
-      // Trả về thông tin đăng nhập thành công (ẩn trường nhạy cảm)
-      // QUAN TRỌNG: Phải gửi response sau khi set cookies
       return res.status(HTTP_STATUS.OK).json({
         success: true,
-        message: "Đăng nhập thành công",
-        data: {
-          admin: {
-            id: admin._id,
-            name: admin.name,
-            email: admin.email,
-            role: admin.role,
-            isActive: admin.isActive,
-          },
-        },
+        message: "Đăng nhập admin thành công",
+        data: { admin },
       });
     } catch (error) {
-      // Lỗi hệ thống chung khi đăng nhập
       return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "Lỗi hệ thống khi đăng nhập",
+        message: "Lỗi hệ thống khi đăng nhập admin",
       });
     }
-  };
+  }
 
-  // Lấy thông tin admin hiện tại (sau xác thực)
+  /**
+   * Lấy thông tin admin hiện tại từ middleware xác thực
+   */
   getCurrentAdmin = async (req, res) => {
     try {
-      const admin = req.admin || req.user;
-      // Nếu chưa đăng nhập hoặc không hợp lệ
+      const admin = req.user;
+
+      // Trường hợp chưa xác thực
       if (!admin) {
         return res.status(HTTP_STATUS.UNAUTHORIZED).json({
           success: false,
           message: "Chưa đăng nhập hoặc token không hợp lệ",
         });
       }
-      // Trả về thông tin admin (không bao gồm trường nhạy cảm)
+
       return res.status(HTTP_STATUS.OK).json({
         success: true,
         message: "Đã xác thực thành công",
@@ -242,14 +207,13 @@ export class AdminController {
             name: admin.name,
             email: admin.email,
             role: admin.role,
-            isActive: admin.isActive,
+            status: admin.status,
             createdAt: admin.createdAt,
             updatedAt: admin.updatedAt,
           },
         },
       });
     } catch {
-      // Lỗi hệ thống khi kiểm tra đăng nhập
       return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Lỗi hệ thống khi kiểm tra đăng nhập",
@@ -257,163 +221,62 @@ export class AdminController {
     }
   };
 
-  // Kiểm tra trạng thái đăng nhập & quyền admin
-  // Tự verify token trong controller, không dùng middleware
-  // Xử lý cả accessToken và refreshToken
+  /**
+   * Kiểm tra trạng thái đăng nhập admin thông qua accessToken trong cookie
+   */
   checkAuth = async (req, res) => {
     try {
-      // Lấy accessToken từ cookies hoặc header
-      let accessToken = req.cookies?.accessToken;
+      const accessToken = req.cookies.accessToken;
+
+      // Chưa đăng nhập
       if (!accessToken) {
-        const authHeader = req.headers?.authorization;
-        if (authHeader && authHeader.startsWith("Bearer ")) {
-          accessToken = authHeader.substring(7);
-        }
-      }
-
-      // Lấy refreshToken từ cookies
-      const refreshToken = req.cookies?.refreshToken;
-
-      // Nếu không có cả accessToken và refreshToken
-      if (!accessToken && !refreshToken) {
-        return res.status(HTTP_STATUS.OK).json({
-          success: true,
+        return res.json({
+          success: false,
+          authenticated: false,
           message: "Chưa đăng nhập",
-          authenticated: false,
         });
       }
 
-      // Verify tokens và lấy admin
-      let decoded;
-      let admin = null;
-      let shouldRefreshTokens = false;
+      // Giải mã token
+      const decoded = jwt.verify(accessToken, JWT_CONFIG.ACCESS_TOKEN_SECRET);
+      const admin = await User.findById(decoded.id);
 
-      // Ưu tiên verify accessToken trước
-      if (accessToken) {
-        try {
-          decoded = jwt.verify(accessToken, JWT_CONFIG.SECRET);
-          // AccessToken hợp lệ, tìm admin
-          admin = await Admin.findById(decoded.id).select("-password");
-        } catch (accessTokenError) {
-          // AccessToken hết hạn hoặc không hợp lệ
-          if (
-            accessTokenError.name === "TokenExpiredError" ||
-            accessTokenError.name === "JsonWebTokenError"
-          ) {
-            // Thử dùng refreshToken
-            if (refreshToken) {
-              try {
-                decoded = jwt.verify(refreshToken, JWT_CONFIG.REFRESH_SECRET);
-                admin = await Admin.findById(decoded.id).select("-password");
-                shouldRefreshTokens = true; // Cần tạo lại tokens mới
-              } catch (refreshTokenError) {
-                // RefreshToken cũng không hợp lệ
-                return res.status(HTTP_STATUS.OK).json({
-                  success: true,
-                  message: "Token không hợp lệ",
-                  authenticated: false,
-                });
-              }
-            } else {
-              // Không có refreshToken
-              return res.status(HTTP_STATUS.OK).json({
-                success: true,
-                message: "Token đã hết hạn",
-                authenticated: false,
-              });
-            }
-          } else {
-            throw accessTokenError;
-          }
-        }
-      } else if (refreshToken) {
-        // Chỉ có refreshToken, không có accessToken
-        try {
-          decoded = jwt.verify(refreshToken, JWT_CONFIG.REFRESH_SECRET);
-          admin = await Admin.findById(decoded.id).select("-password");
-          shouldRefreshTokens = true; // Cần tạo lại tokens mới
-        } catch (refreshTokenError) {
-          return res.status(HTTP_STATUS.OK).json({
-            success: true,
-            message: "Token không hợp lệ",
-            authenticated: false,
-          });
-        }
-      }
-
-      // Nếu không tìm thấy admin
-      if (!admin) {
-        return res.status(HTTP_STATUS.OK).json({
+      // Kiểm tra quyền admin và trạng thái hoạt động
+      if (admin && admin.role === 'admin' && admin.status === 'active') {
+        return res.json({
           success: true,
-          message: "Token không hợp lệ - Admin không tồn tại",
-          authenticated: false,
-        });
-      }
-
-      // Kiểm tra role admin
-      if (admin.role !== "admin") {
-        return res.status(HTTP_STATUS.OK).json({
-          success: true,
-          message: "Chỉ admin mới có quyền truy cập",
-          authenticated: false,
-        });
-      }
-
-      // Kiểm tra tài khoản đã kích hoạt chưa
-      if (!admin.isActive) {
-        return res.status(HTTP_STATUS.OK).json({
-          success: true,
-          message: "Tài khoản chưa được kích hoạt",
-          authenticated: false,
-        });
-      }
-
-      // Nếu cần refresh tokens (khi accessToken hết hạn nhưng refreshToken hợp lệ)
-      if (shouldRefreshTokens) {
-        const newAccessToken = generateToken(admin._id);
-        const newRefreshToken = generateRefreshToken(admin._id);
-        const cookieOptions = getCookieOptions();
-
-        res.cookie("accessToken", newAccessToken, {
-          ...cookieOptions,
-          maxAge: 15 * 60 * 1000, // 15 phút
-        });
-        res.cookie("refreshToken", newRefreshToken, {
-          ...cookieOptions,
-          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
-        });
-      }
-
-      // Đã xác thực là admin hợp lệ và đã kích hoạt
-      return res.status(HTTP_STATUS.OK).json({
-        success: true,
-        message: "Đã xác thực",
-        authenticated: true,
-        data: {
-          admin: {
-            id: admin._id,
-            name: admin.name,
-            email: admin.email,
-            role: admin.role,
-            isActive: admin.isActive,
+          authenticated: true,
+          message: "Admin đã đăng nhập",
+          data: {
+            admin: {
+              id: admin._id,
+              name: admin.name,
+              email: admin.email,
+              role: admin.role,
+            },
           },
-        },
+        });
+      }
+
+      return res.json({
+        success: false,
+        authenticated: false,
+        message: "Token không hợp lệ hoặc bạn không phải admin.",
       });
     } catch (error) {
-      // Lỗi hệ thống khi kiểm tra đăng nhập
-      console.error("Check auth error:", error);
-      return res.status(HTTP_STATUS.OK).json({
+      return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "Lỗi hệ thống khi kiểm tra đăng nhập",
         authenticated: false,
+        message: "Lỗi hệ thống khi kiểm tra đăng nhập",
       });
     }
   };
 
-  // Lấy danh sách trung tâm (có phân trang, tìm kiếm, lọc/trật tự)
+  /**
+   * Lấy danh sách trung tâm (có phân trang, tìm kiếm, sắp xếp)
+   */
   getCenters = async (req, res) => {
     try {
-      // Lấy tham số truy vấn cho lọc, tìm kiếm, phân trang
       const {
         search = "",
         isVerified,
@@ -423,7 +286,7 @@ export class AdminController {
         limit = 10,
       } = req.query;
 
-      // Tạo options cho query service
+      // Chuẩn hóa options truyền xuống service
       const options = {
         search,
         isVerified: isVerified !== undefined ? isVerified : null,
@@ -433,24 +296,104 @@ export class AdminController {
         limit: parseInt(limit, 10),
       };
 
-      // Lấy danh sách trung tâm từ service
       const result = await this.centersService.getCenters({}, options);
 
-      // Trả về danh sách trung tâm cùng thông tin phân trang
       return res.status(HTTP_STATUS.OK).json({
         success: true,
         data: result.centers,
         pagination: result.pagination,
       });
     } catch {
-      // Lỗi hệ thống khi lấy danh sách trung tâm
       return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Lỗi khi lấy danh sách trung tâm",
       });
     }
   };
+
+  /**
+   * Cập nhật thông tin admin (tên, email, mật khẩu)
+   */
+  updateAdmin = async (req, res) => {
+    try {
+      const adminId = req.user._id;
+      const { name, email, oldPassword, newPassword } = req.body || {};
+
+      // Kiểm tra dữ liệu cập nhật
+      if (!name && !email && !newPassword) {
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
+          success: false,
+          message: "Cần cung cấp ít nhất một trường để cập nhật: tên, email hoặc mật khẩu",
+        });
+      }
+
+      // Validate mật khẩu mới
+      if (newPassword && (typeof newPassword !== "string" || newPassword.length < 6)) {
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
+          success: false,
+          message: "Mật khẩu mới phải có ít nhất 6 ký tự",
+        });
+      }
+
+      // Validate email
+      if (email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          return res.status(HTTP_STATUS.BAD_REQUEST).json({
+            success: false,
+            message: "Email không hợp lệ",
+          });
+        }
+      }
+
+      const updateData = { name, email, oldPassword, newPassword };
+      const updatedAdmin = await this.adminService.updateAdmin(adminId, updateData);
+
+      return res.status(HTTP_STATUS.OK).json({
+        success: true,
+        message: "Cập nhật thông tin thành công",
+        data: {
+          admin: {
+            id: updatedAdmin._id,
+            name: updatedAdmin.name,
+            email: updatedAdmin.email,
+            role: updatedAdmin.role,
+            status: updatedAdmin.status,
+            updatedAt: updatedAdmin.updatedAt,
+          },
+        },
+      });
+    } catch (error) {
+      // Xử lý các lỗi nghiệp vụ cụ thể
+      if (error.message === "Admin không tồn tại") {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          success: false,
+          message: "Admin không tồn tại",
+        });
+      }
+      if (error.message === "Email đã được sử dụng") {
+        return res.status(HTTP_STATUS.CONFLICT).json({
+          success: false,
+          message: "Email đã được sử dụng",
+        });
+      }
+      if (
+        error.message === "Cần cung cấp mật khẩu cũ để thay đổi mật khẩu" ||
+        error.message === "Mật khẩu cũ không chính xác"
+      ) {
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
+          success: false,
+          message: error.message,
+        });
+      }
+
+      return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Lỗi hệ thống khi cập nhật thông tin",
+      });
+    }
+  };
 }
 
-// Xuất instance controller để dùng cho router
+// Export instance controller
 export const adminController = new AdminController();

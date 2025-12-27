@@ -27,6 +27,11 @@ const nextConfig = {
         pathname: "/**",
       },
       {
+        protocol: "https",
+        hostname: "images.pexels.com",
+        pathname: "/**",
+      },
+      {
         protocol: "http",
         hostname: "localhost",
         pathname: "/**",
@@ -78,6 +83,17 @@ const nextConfig = {
   // Output optimizations
   poweredByHeader: false, // Ẩn X-Powered-By header
   compress: true, // Enable gzip compression
+
+  // Webpack configuration để fix Supabase realtime warning
+  webpack: (config, { isServer }) => {
+    // Ignore critical dependency warnings from Supabase realtime
+    config.module.exprContextCritical = false;
+
+    // Alternative: specifically ignore the Supabase realtime warning
+    config.module.unknownContextCritical = false;
+
+    return config;
+  },
 };
 
 module.exports = nextConfig;

@@ -1,41 +1,63 @@
-import { CentersService } from "../services/centersServices.js";
+import { CentersService } from "../services/centersService.js";
 import { HTTP_STATUS } from "../utils/constants.js";
 import { uploadService } from "../services/uploadService.js";
+import User from "../models/User.js";
 
-// Controller quản lý các thao tác với Centers
+/**
+ * Khởi tạo service xử lý nghiệp vụ liên quan đến trung tâm
+ */
+const centersService = new CentersService();
+
+/**
+ * CentersController
+ * -----------------
+ * Chịu trách nhiệm xử lý request/response cho các chức năng liên quan đến:
+ * - Trung tâm đào tạo
+ * - Đánh giá trung tâm
+ * - Duyệt trung tâm (admin)
+ */
 export class CentersController {
   constructor() {
-    this.centersService = new CentersService();
+    this.centersService = centersService;
   }
 
+  /**
+   * Lấy danh sách trung tâm đã được duyệt (public)
+   * - Có phân trang
+   * - Dùng cho trang chủ / trang danh sách công khai
+   */
   getAllCenters = async (req, res) => {
     try {
-      // Lấy tham số phân trang từ query
       const { page = 1, limit = 10 } = req.query;
+
       const options = {
         page: parseInt(page),
         limit: parseInt(limit),
       };
-      // Gọi service với options phân trang
+
       const result = await this.centersService.getAllCenters(options);
+
       return res.status(HTTP_STATUS.OK).json({
         success: true,
         data: result.centers,
         pagination: result.pagination,
       });
     } catch (error) {
-      console.error("Get all centers error:", error);
+      console.error("Lỗi khi lấy danh sách trung tâm công khai:", error);
       return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: error.message || "Lỗi khi lấy danh sách trung tâm",
+        message: error.message || "Không thể lấy danh sách trung tâm.",
       });
     }
   };
 
-  // Lấy danh sách các trung tâm
+  /**
+   * Lấy danh sách trung tâm cho trang quản trị
+   * - Hỗ trợ tìm kiếm, lọc, sắp xếp
+   * - Có phân trang
+   */
   getCenters = async (req, res) => {
     try {
-      // Lấy các tham số truy vấn từ request (search, xác thực, sắp xếp, phân trang)
       const {
         search = "",
         isVerified,
@@ -45,7 +67,6 @@ export class CentersController {
         limit = 10,
       } = req.query;
 
-      // Tạo object options cho truy vấn
       const options = {
         search,
         isVerified: isVerified !== undefined ? isVerified : null,
@@ -55,7 +76,6 @@ export class CentersController {
         limit: parseInt(limit),
       };
 
-      // Lấy dữ liệu trung tâm từ service
       const result = await this.centersService.getCenters({}, options);
 
       return res.status(HTTP_STATUS.OK).json({
@@ -64,49 +84,46 @@ export class CentersController {
         pagination: result.pagination,
       });
     } catch (error) {
-      // In ra log lỗi và trả về lỗi server
-      console.error("Get centers error:", error);
+      console.error("Lỗi khi lấy danh sách trung tâm (admin):", error);
 
-      // Kiểm tra xem có phải lỗi database không
+      // Xử lý lỗi kết nối MongoDB
       if (
         error.name === "MongoServerSelectionError" ||
         error.name === "MongoNetworkError"
       ) {
         return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
           success: false,
-          message:
-            "Không thể kết nối đến database. Vui lòng kiểm tra MongoDB đã chạy chưa.",
+          message: "Không thể kết nối cơ sở dữ liệu. Vui lòng thử lại sau.",
         });
       }
 
       return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: error.message || "Lỗi khi lấy danh sách trung tâm",
+        message: error.message || "Không thể lấy danh sách trung tâm.",
       });
     }
   };
 
-  // Lấy thông tin trung tâm theo ID
+  /**
+   * Lấy chi tiết thông tin một trung tâm theo ID
+   */
   getCenterById = async (req, res) => {
     try {
-      // Lấy id từ params
       const { id } = req.params;
 
       if (!id) {
         return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
-          message: "ID trung tâm không hợp lệ",
+          message: "ID trung tâm là bắt buộc.",
         });
       }
 
-      // Lấy trung tâm từ service
       const center = await this.centersService.getCenterById(id);
 
       if (!center) {
-        // Không tìm thấy trung tâm
         return res.status(HTTP_STATUS.NOT_FOUND).json({
           success: false,
-          message: "Không tìm thấy trung tâm",
+          message: "Không tìm thấy trung tâm.",
         });
       }
 
@@ -115,369 +132,228 @@ export class CentersController {
         data: center,
       });
     } catch (error) {
-      // Xử lý lỗi server
-      console.error("Get center by id error:", error);
+      console.error("Lỗi khi lấy trung tâm theo ID:", error);
 
-      // Kiểm tra xem có phải lỗi database không
-      if (
-        error.name === "MongoServerSelectionError" ||
-        error.name === "MongoNetworkError"
-      ) {
-        return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
-          success: false,
-          message:
-            "Không thể kết nối đến database. Vui lòng kiểm tra MongoDB đã chạy chưa.",
-        });
-      }
-
-      // Kiểm tra xem có phải lỗi ObjectId không hợp lệ không
-      if (error.name === "CastError" && error.kind === "ObjectId") {
+      // ID không hợp lệ (Mongo ObjectId)
+      if (error.name === "CastError") {
         return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
-          message: "ID trung tâm không hợp lệ",
+          message: "ID trung tâm không hợp lệ.",
         });
       }
 
       return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: error.message || "Lỗi khi lấy thông tin trung tâm",
+        message: "Không thể lấy thông tin trung tâm.",
       });
     }
   };
 
-  // Tạo mới trung tâm
+  /**
+   * Tạo mới một trung tâm
+   * - Hỗ trợ upload ảnh: multipart/form-data hoặc base64
+   * - Admin tạo -> duyệt ngay
+   * - User tạo -> chờ duyệt
+   */
   createCenter = async (req, res) => {
     try {
-      // Lấy dữ liệu từ body (text fields)
       const { name, address, phone, website } = req.body;
-      // Lấy file từ multer (uploadSingleImage sẽ set req.file)
       const file = req.file;
 
-      // Kiểm tra tên trung tâm bắt buộc nhập
       if (!name) {
         return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,
-          message: "Tên trung tâm là bắt buộc",
+          message: "Tên trung tâm là bắt buộc.",
         });
       }
 
-      // Upload ảnh lên upanhnhanh.com nếu có file
-      let uploadedImageUrl = undefined;
+      let uploadedImageUrl;
+
+      // Upload ảnh từ multipart/form-data
       if (file) {
-        // Kiểm tra kích thước file không quá 10MB
         if (file.size > 10 * 1024 * 1024) {
           return res.status(HTTP_STATUS.BAD_REQUEST).json({
             success: false,
-            message: `Kích thước ảnh không được vượt quá 10MB. Hiện tại: ${(
-              file.size /
-              (1024 * 1024)
-            ).toFixed(2)}MB`,
+            message: "Kích thước ảnh không được vượt quá 10MB.",
           });
         }
 
-        // Upload file và lấy URL
-        try {
-          uploadedImageUrl = await uploadService.uploadFile(
-            file.buffer,
-            file.originalname,
-            file.mimetype
-          );
-        } catch (uploadError) {
-          console.error("Error uploading center image:", uploadError);
-          return res.status(HTTP_STATUS.BAD_REQUEST).json({
-            success: false,
-            message: `Lỗi upload ảnh trung tâm: ${uploadError.message}`,
-          });
-        }
-      } else if (req.body.image && req.body.image.trim()) {
-        // Backward compatibility: hỗ trợ base64 nếu không có file (sẽ convert sang URL)
-        try {
-          uploadedImageUrl = await uploadService.uploadImage(req.body.image);
-        } catch (uploadError) {
-          console.error("Error uploading base64 image:", uploadError);
-          return res.status(HTTP_STATUS.BAD_REQUEST).json({
-            success: false,
-            message: `Lỗi upload ảnh (base64): ${uploadError.message}`,
-          });
-        }
+        uploadedImageUrl = await uploadService.uploadFile(
+          file.buffer,
+          file.originalname,
+          file.mimetype
+        );
+      }
+      // Upload ảnh từ base64
+      else if (req.body.image?.trim()) {
+        uploadedImageUrl = await uploadService.uploadImage(req.body.image);
       }
 
-      // Tạo object dữ liệu trung tâm (chỉ lưu URL, không lưu base64)
       const centerData = {
         name,
         address,
         phone,
         website,
-        image: uploadedImageUrl, // Lưu URL từ upanhnhanh.com
+        image: uploadedImageUrl,
+        isVerified: req.user?.role === "admin",
       };
 
-      // Gọi service tạo trung tâm mới
       const center = await this.centersService.createCenter(centerData);
 
       return res.status(HTTP_STATUS.CREATED).json({
         success: true,
-        message: "Tạo trung tâm thành công",
+        message:
+          "Tạo trung tâm thành công. Trung tâm sẽ hiển thị sau khi được duyệt.",
         data: center,
       });
     } catch (error) {
-      // Nếu có lỗi, trả về lỗi 400 cùng message từ error
-      console.error("Create center error:", error);
+      console.error("Lỗi khi tạo trung tâm:", error);
       return res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
-        message: error.message || "Lỗi khi tạo trung tâm",
+        message: error.message || "Không thể tạo trung tâm.",
       });
     }
   };
 
-  // Cập nhật thông tin trung tâm
+  /**
+   * Cập nhật thông tin trung tâm
+   * - Cho phép cập nhật từng trường
+   * - Hỗ trợ thay đổi ảnh (URL hoặc base64)
+   */
   updateCenter = async (req, res) => {
     try {
       const { id } = req.params;
       const { name, address, phone, website, image } = req.body;
 
-      // Thu thập các trường cần update
       const updateData = {};
       if (name !== undefined) updateData.name = name;
       if (address !== undefined) updateData.address = address;
       if (phone !== undefined) updateData.phone = phone;
       if (website !== undefined) updateData.website = website;
 
-      // Xử lý image: nếu là base64 thì upload lên upanhnhanh.com để lấy URL
       if (image !== undefined) {
-        // Kiểm tra xem image có phải là base64 không
-        if (
-          image &&
-          typeof image === "string" &&
-          (image.startsWith("data:image/") || image.length > 1000)
-        ) {
-          // Nếu là base64, upload lên upanhnhanh.com để lấy URL
-          try {
-            const uploadedImageUrl = await uploadService.uploadImage(image);
-            updateData.image = uploadedImageUrl; // Lưu URL thay vì base64
-          } catch (uploadError) {
-            console.error(
-              "Error uploading base64 image in update:",
-              uploadError
-            );
-            return res.status(HTTP_STATUS.BAD_REQUEST).json({
-              success: false,
-              message: `Lỗi upload ảnh: ${uploadError.message}`,
-            });
-          }
+        if (typeof image === "string" && image.startsWith("data:image/")) {
+          updateData.image = await uploadService.uploadImage(image);
         } else {
-          // Nếu đã là URL hoặc empty string, giữ nguyên
           updateData.image = image;
         }
       }
 
-      // Gọi service để update
       const center = await this.centersService.updateCenter(id, updateData);
 
       if (!center) {
-        // Không tìm thấy
         return res.status(HTTP_STATUS.NOT_FOUND).json({
           success: false,
-          message: "Không tìm thấy trung tâm",
+          message: "Không tìm thấy trung tâm.",
         });
       }
 
       return res.status(HTTP_STATUS.OK).json({
         success: true,
-        message: "Cập nhật trung tâm thành công",
+        message: "Cập nhật trung tâm thành công.",
         data: center,
       });
     } catch (error) {
-      // Trường hợp dữ liệu đầu vào không hợp lệ hoặc lỗi khác
-      console.error("Update center error:", error);
+      console.error("Lỗi khi cập nhật trung tâm:", error);
       return res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
-        message: error.message || "Lỗi khi cập nhật trung tâm",
+        message: error.message || "Không thể cập nhật trung tâm.",
       });
     }
   };
 
-  // Xóa trung tâm theo ID
+  /**
+   * Xóa trung tâm theo ID
+   */
   deleteCenter = async (req, res) => {
     try {
       const { id } = req.params;
 
-      // Gọi service để xóa trung tâm
       const deleted = await this.centersService.deleteCenter(id);
 
       if (!deleted) {
-        // Không tìm thấy hoặc xóa thất bại
         return res.status(HTTP_STATUS.NOT_FOUND).json({
           success: false,
-          message: "Không tìm thấy trung tâm",
+          message: "Không tìm thấy trung tâm.",
         });
       }
 
       return res.status(HTTP_STATUS.OK).json({
         success: true,
-        message: "Xóa trung tâm thành công",
+        message: "Xóa trung tâm thành công.",
       });
     } catch (error) {
-      // Nếu lỗi trong quá trình xóa
-      console.error("Delete center error:", error);
+      console.error("Lỗi khi xóa trung tâm:", error);
       return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "Lỗi khi xóa trung tâm",
+        message: "Không thể xóa trung tâm.",
       });
     }
   };
 
-  // Thêm review cho trung tâm
+  /**
+   * Thêm đánh giá cho trung tâm
+   * - Yêu cầu đăng nhập
+   * - Hỗ trợ nhiều hình ảnh (file hoặc base64)
+   * - Rating giới hạn từ 1–5
+   */
   addReview = async (req, res) => {
     try {
       const { id } = req.params;
-      // Lấy dữ liệu từ body (text fields)
-      const { comment, reviewerName, rating = 5, images, image } = req.body;
-      // Lấy files từ multer (nếu có)
+      const { comment, rating = 5, images, image } = req.body;
       const files = req.files || [];
+      const userId = req.user?.id;
 
-      // Upload ảnh lên upanhnhanh.com nếu có
-      let uploadedImageUrls = [];
-      if (files && files.length > 0) {
-        // Kiểm tra tổng kích thước tất cả file không quá 10MB
-        let totalSize = 0;
-        for (const file of files) {
-          if (file && file.size) {
-            totalSize += file.size;
-          }
-        }
-
-        const maxTotalSize = 10 * 1024 * 1024; // 10MB
-        if (totalSize > maxTotalSize) {
-          return res.status(HTTP_STATUS.BAD_REQUEST).json({
-            success: false,
-            message: `Tổng kích thước tất cả ảnh không được vượt quá 10MB. Hiện tại: ${(
-              totalSize /
-              (1024 * 1024)
-            ).toFixed(2)}MB`,
-          });
-        }
-
-        // Upload nhiều file
-        try {
-          uploadedImageUrls = await uploadService.uploadMultipleFiles(files);
-        } catch (uploadError) {
-          console.error("Error uploading files:", uploadError);
-          return res.status(HTTP_STATUS.BAD_REQUEST).json({
-            success: false,
-            message: `Lỗi upload ảnh: ${uploadError.message}`,
-          });
-        }
-      } else if (images && Array.isArray(images) && images.length > 0) {
-        // Backward compatibility: hỗ trợ base64 nếu không có file
-        // Kiểm tra tổng kích thước base64 của tất cả ảnh không quá 10MB
-        // Base64 thường lớn hơn file gốc khoảng 33%, nhưng để an toàn, kiểm tra kích thước base64
-        let totalBase64Size = 0;
-        for (const img of images) {
-          if (img && typeof img === "string") {
-            // Loại bỏ data:image prefix nếu có để tính kích thước chính xác
-            const base64Data = img.includes(",") ? img.split(",")[1] : img;
-            // Kích thước base64 (bytes) = (base64Length * 3) / 4
-            totalBase64Size += (base64Data.length * 3) / 4;
-          }
-        }
-
-        const maxTotalSize = 10 * 1024 * 1024; // 10MB
-        if (totalBase64Size > maxTotalSize) {
-          return res.status(HTTP_STATUS.BAD_REQUEST).json({
-            success: false,
-            message: `Tổng kích thước tất cả ảnh không được vượt quá 10MB. Hiện tại: ${(
-              totalBase64Size /
-              (1024 * 1024)
-            ).toFixed(2)}MB`,
-          });
-        }
-
-        // Upload nhiều ảnh
-        try {
-          uploadedImageUrls = await uploadService.uploadMultipleImages(images);
-        } catch (uploadError) {
-          console.error("Error uploading images:", uploadError);
-          return res.status(HTTP_STATUS.BAD_REQUEST).json({
-            success: false,
-            message: `Lỗi upload ảnh: ${uploadError.message}`,
-          });
-        }
-      } else if (image && typeof image === "string" && image.trim()) {
-        // Kiểm tra kích thước base64 của ảnh đơn không quá 10MB
-        const base64Data = image.includes(",") ? image.split(",")[1] : image;
-        const base64Size = (base64Data.length * 3) / 4;
-        const maxSize = 10 * 1024 * 1024; // 10MB
-
-        if (base64Size > maxSize) {
-          return res.status(HTTP_STATUS.BAD_REQUEST).json({
-            success: false,
-            message: `Kích thước ảnh không được vượt quá 10MB. Hiện tại: ${(
-              base64Size /
-              (1024 * 1024)
-            ).toFixed(2)}MB`,
-          });
-        }
-        // Upload 1 ảnh (backward compatibility)
-        try {
-          const uploadedUrl = await uploadService.uploadImage(image);
-          if (uploadedUrl) {
-            uploadedImageUrls = [uploadedUrl];
-          }
-        } catch (uploadError) {
-          console.error("Error uploading image:", uploadError);
-          return res.status(HTTP_STATUS.BAD_REQUEST).json({
-            success: false,
-            message: `Lỗi upload ảnh: ${uploadError.message}`,
-          });
-        }
+      if (!userId) {
+        return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+          success: false,
+          message: "Vui lòng đăng nhập để đánh giá.",
+        });
       }
 
-      const parsedRating = Math.max(1, Math.min(5, parseInt(rating, 10) || 5));
+      let uploadedImageUrls = [];
+
+      if (files.length > 0) {
+        uploadedImageUrls = await uploadService.uploadMultipleFiles(files);
+      } else if (Array.isArray(images)) {
+        uploadedImageUrls = await uploadService.uploadMultipleImages(images);
+      } else if (image?.trim()) {
+        uploadedImageUrls = [await uploadService.uploadImage(image)];
+      }
+
+      const parsedRating = Math.max(1, Math.min(5, Number(rating) || 5));
 
       const reviewData = {
         rating: parsedRating,
         comment: comment?.trim(),
-        reviewerName: reviewerName?.trim(),
         images: uploadedImageUrls,
-        image:
-          uploadedImageUrls.length === 1 ? uploadedImageUrls[0] : undefined,
-        createdAt: new Date(),
+        user: userId,
       };
 
-      // Thêm review cho trung tâm
-      const center = await this.centersService.addReview(id, reviewData);
-
-      if (!center) {
-        // Không tìm thấy trung tâm
-        return res.status(HTTP_STATUS.NOT_FOUND).json({
-          success: false,
-          message: "Không tìm thấy trung tâm",
-        });
-      }
+      const newReview = await this.centersService.addReview(id, reviewData);
 
       return res.status(HTTP_STATUS.CREATED).json({
         success: true,
-        message: "Thêm đánh giá thành công",
-        data: center,
+        message: "Thêm đánh giá thành công.",
+        data: newReview,
       });
     } catch (error) {
-      // Lỗi khi thêm đánh giá
-      console.error("Add review error:", error);
+      console.error("Lỗi khi thêm đánh giá:", error);
       return res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
-        message: error.message || "Lỗi khi thêm đánh giá",
+        message: error.message || "Không thể thêm đánh giá.",
       });
     }
   };
 
-  // Xác thực (duyệt) trung tâm (dành cho admin)
+  /**
+   * Duyệt hoặc hủy duyệt trung tâm (admin)
+   */
   verifyCenter = async (req, res) => {
     try {
       const { id } = req.params;
-      // Mặc định isVerified là true nếu không truyền vào
       const { isVerified = true } = req.body;
 
-      // Gọi service duyệt trung tâm
       const center = await this.centersService.verifyCenter(
         id,
         isVerified === true || isVerified === "true"
@@ -486,90 +362,83 @@ export class CentersController {
       if (!center) {
         return res.status(HTTP_STATUS.NOT_FOUND).json({
           success: false,
-          message: "Không tìm thấy trung tâm",
+          message: "Không tìm thấy trung tâm.",
         });
       }
 
       return res.status(HTTP_STATUS.OK).json({
         success: true,
         message: isVerified
-          ? "Duyệt trung tâm thành công"
-          : "Hủy duyệt trung tâm thành công",
+          ? "Duyệt trung tâm thành công."
+          : "Hủy duyệt trung tâm thành công.",
         data: center,
       });
     } catch (error) {
-      // Lỗi khi duyệt/hủy duyệt
-      console.error("Verify center error:", error);
+      console.error("Lỗi khi duyệt trung tâm:", error);
       return res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
-        message: error.message || "Lỗi khi duyệt trung tâm",
+        message: error.message || "Không thể duyệt trung tâm.",
       });
     }
   };
 
-  // Lấy tất cả đánh giá từ tất cả trung tâm (dành cho admin)
+  /**
+   * Lấy tất cả đánh giá (admin)
+   */
   getAllReviews = async (req, res) => {
     try {
-      // Lấy các param lọc/sắp xếp
-      const {
-        search = "",
-        sortBy = "createdAt",
-        sortOrder = "desc",
-      } = req.query;
+      const { search = "", sortBy = "createdAt", sortOrder = "desc" } = req.query;
 
-      const options = {
+      const reviews = await this.centersService.getAllReviews({}, {
         search,
         sortBy,
         sortOrder,
-      };
-
-      // Lấy danh sách đánh giá từ service
-      const reviews = await this.centersService.getAllReviews({}, options);
+      });
 
       return res.status(HTTP_STATUS.OK).json({
         success: true,
         data: reviews,
       });
     } catch (error) {
-      // Xử lý lỗi khi lấy danh sách đánh giá
-      console.error("Get all reviews error:", error);
+      console.error("Lỗi khi lấy danh sách đánh giá:", error);
       return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "Lỗi khi lấy danh sách đánh giá",
+        message: "Không thể lấy danh sách đánh giá.",
       });
     }
   };
 
-  // Xóa đánh giá khỏi trung tâm (dành cho admin)
+  /**
+   * Xóa đánh giá khỏi trung tâm (admin)
+   */
   deleteReview = async (req, res) => {
     try {
       const { centerId, reviewId } = req.params;
 
-      // Gọi service để xóa review khỏi trung tâm
-      const center = await this.centersService.deleteReview(centerId, reviewId);
+      const success = await this.centersService.deleteReview(centerId, reviewId);
 
-      if (!center) {
+      if (!success) {
         return res.status(HTTP_STATUS.NOT_FOUND).json({
           success: false,
-          message: "Không tìm thấy trung tâm hoặc đánh giá",
+          message: "Không tìm thấy đánh giá hoặc trung tâm.",
         });
       }
 
       return res.status(HTTP_STATUS.OK).json({
         success: true,
-        message: "Xóa đánh giá thành công",
-        data: center,
+        message: "Xóa đánh giá thành công.",
       });
     } catch (error) {
-      // Lỗi khi xóa đánh giá
-      console.error("Delete review error:", error);
+      console.error("Lỗi khi xóa đánh giá:", error);
       return res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
-        message: error.message || "Lỗi khi xóa đánh giá",
+        message: error.message || "Không thể xóa đánh giá.",
       });
     }
   };
 }
 
-// Export instance để sử dụng trong các routes
+/**
+ * Export instance để sử dụng trong routes
+ */
 export const centersController = new CentersController();

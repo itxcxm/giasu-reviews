@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import ReviewClient from '@/app/review/ReviewClient';
-import { centersAPI } from '@/lib/api';
+import { centersApi } from '@/lib/api';
 
 // Đảm bảo route này là dynamic (không phải static)
 export const dynamic = 'force-dynamic';
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export default async function ReviewPage({ params }: { params: { id: string } }) {
   try {
     // Lấy dữ liệu trung tâm theo id từ API
-    const response = await centersAPI.getCenterById(params.id);
+    const response = await centersApi.getCenterById(params.id);
 
     if (!response.success || !response.data) {
       notFound();
