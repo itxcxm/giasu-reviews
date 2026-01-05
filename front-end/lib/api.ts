@@ -123,6 +123,7 @@ export interface Review {
   updatedAt?: string;
   centerId?: string;
   centerName?: string;
+  status?: 'approved' | 'pending' | 'rejected';
   user: {
     _id: string;
     name: string;

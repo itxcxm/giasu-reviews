@@ -90,7 +90,7 @@ export default function AdminReviewsPage() {
       
       const transformedReviews: ReviewWithStatus[] = (response.data || []).map((review: Review) => ({
         ...review,
-        status: review.status || 'pending',
+        status: review.status ?? 'pending',
         studentName: review.user?.name || 'Người dùng',
       }));
 
