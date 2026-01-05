@@ -30,7 +30,7 @@ export class UserRepository {
       ];
     }
 
-    return await User.find(query).populate('permissions');
+    return await User.find(query).populate({ path: 'permissions' });
   }
 
   async deleteUserById(id) {

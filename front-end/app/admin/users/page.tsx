@@ -27,8 +27,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,9 +42,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
 import {
-  UserCog,
   Trash2,
-  Shield,
   Search,
   Filter,
   Users,
@@ -58,45 +54,39 @@ import {
 import { adminApi } from '@/lib/api';
 import { useDebounce } from '@/hooks/use-debounce';
 
-
-interface Permission {
-  _id: string;
-  name: string;
-  description: string;
-  createdAt: string;
-}
-
 interface Profile {
   _id: string;
   email: string;
   name: string;
   status: string;
+  role: string;
   createdAt: string;
   updatedAt: string;
 }
 
-interface UserWithPermissions extends Profile {
-  permissions: Permission[];
-}
-
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<UserWithPermissions[]>([]);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
+  // State để lưu danh sách người dùng
+  const [users, setUsers] = useState<Profile[]>([]);
+  // State để quản lý trạng thái tải dữ liệu
   const [loading, setLoading] = useState(true);
+  // State cho từ khóa tìm kiếm
   const [searchTerm, setSearchTerm] = useState('');
+  // State cho bộ lọc trạng thái
   const [statusFilter, setStatusFilter] = useState<string>('all');
-
-  const [selectedUser, setSelectedUser] = useState<UserWithPermissions | null>(null);
-  const [permissionDialogOpen, setPermissionDialogOpen] = useState(false);
+  // State để mở/đóng dialog xác nhận xóa
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  // State để lưu thông tin người dùng cần xóa
   const [userToDelete, setUserToDelete] = useState<Profile | null>(null);
-
+  // State để quản lý trạng thái đang xóa
   const [isDeleting, setIsDeleting] = useState(false);
+  // State để quản lý trạng thái đang cập nhật trạng thái người dùng
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
-  
+  const [isUpdatingRole, setIsUpdatingRole] = useState<string | null>(null);
+  // Hook để hiển thị thông báo
   const { toast } = useToast();
+  // Hook debounce cho thanh tìm kiếm
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
-
+  // Hàm tải danh sách người dùng từ API
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
@@ -130,31 +120,7 @@ export default function AdminUsersPage() {
     fetchUsers();
   }, [fetchUsers]);
 
-  useEffect(() => {
-    const fetchPermissions = async () => {
-      try {
-        const response = await adminApi.getPermissions();
-        if (response.success) {
-          setPermissions(response.data);
-        } else {
-          toast({
-            variant: 'destructive',
-            title: 'Lỗi',
-            description: (response as any).message || 'Không thể tải danh sách quyền.',
-          });
-          setPermissions([]);
-        }
-      } catch (error: any) {
-        toast({
-          variant: 'destructive',
-          title: 'Lỗi',
-          description: 'Không thể tải danh sách quyền: ' + error.message,
-        });
-        setPermissions([]);
-      }
-    };
-    fetchPermissions();
-  }, [toast]);
+
 
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
@@ -180,28 +146,7 @@ export default function AdminUsersPage() {
       setIsDeleting(false);
     }
   };
-
-  const handleUpdatePermissions = async (userId: string, permissionIds: string[]) => {
-    try {
-      await adminApi.updateUserPermissions(userId, permissionIds);
-
-      toast({
-        title: 'Thành công',
-        description: 'Đã cập nhật quyền người dùng',
-      });
-
-      fetchUsers();
-      setPermissionDialogOpen(false);
-      setSelectedUser(null);
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Lỗi',
-        description: 'Không thể cập nhật quyền: ' + error.message,
-      });
-    }
-  };
-
+  // Hàm xử lý cập nhật trạng thái người dùng
   const handleUpdateStatus = async (userId: string, newStatus: 'active' | 'inactive' | 'banned') => {
     setIsUpdatingStatus(userId);
     try {
@@ -224,6 +169,29 @@ export default function AdminUsersPage() {
     }
   };
 
+  // Hàm xử lý cập nhật vai trò người dùng
+  const handleUpdateRole = async (userId: string, newRole: 'user' | 'admin') => {
+    setIsUpdatingRole(userId);
+    try {
+      await adminApi.updateUser(userId, { role: newRole });
+
+      toast({
+        title: 'Thành công',
+        description: 'Đã cập nhật vai trò người dùng',
+      });
+
+      fetchUsers();
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Lỗi',
+        description: 'Không thể cập nhật vai trò: ' + error.message,
+      });
+    } finally {
+      setIsUpdatingRole(null);
+    }
+  };
+  // Hàm trả về Badge trạng thái tương ứng
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
@@ -251,7 +219,7 @@ export default function AdminUsersPage() {
         return null;
     }
   };
-
+  // Tính toán số liệu thống kê người dùng
   const stats = {
     total: users.length,
     active: users.filter((u) => u.status === 'active').length,
@@ -259,6 +227,7 @@ export default function AdminUsersPage() {
     banned: users.filter((u) => u.status === 'banned').length,
   };
 
+  // Render giao diện quản lý người dùng
   return (
     <div className="container mx-auto py-10 px-4">
       <div className="mb-8">
@@ -336,6 +305,7 @@ export default function AdminUsersPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Hiển thị Skeleton khi đang tải dữ liệu */}
           {loading ? (
             <div className="space-y-2">
               {[...Array(5)].map((_, i) => (
@@ -343,6 +313,7 @@ export default function AdminUsersPage() {
               ))}
             </div>
           ) : (
+            // Bảng hiển thị danh sách người dùng
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
@@ -350,12 +321,13 @@ export default function AdminUsersPage() {
                     <TableHead>Người dùng</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Trạng thái</TableHead>
-                    <TableHead>Quyền</TableHead>
+                    <TableHead>Vai trò</TableHead>
                     <TableHead>Ngày tạo</TableHead>
                     <TableHead className="text-right">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {/* Hiển thị thông báo nếu không có người dùng */}
                   {users.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
@@ -363,6 +335,7 @@ export default function AdminUsersPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
+                    // Render từng hàng người dùng
                     users.map((user) => (
                       <TableRow key={user._id}>
                         <TableCell className="font-medium">
@@ -371,27 +344,43 @@ export default function AdminUsersPage() {
                         <TableCell>{user.email}</TableCell>
                         <TableCell>{getStatusBadge(user.status)}</TableCell>
                         <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {user.permissions.length > 0 ? (
-                              user.permissions.map((perm: any) => (
-                                <Badge key={perm._id} variant="outline" className="text-xs">
-                                  {perm.name}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-xs text-muted-foreground">Không có quyền</span>
-                            )}
-                          </div>
+                          {user.role === 'admin' ? (
+                            <Badge variant="destructive" className="text-xs">
+                              Quản trị viên
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs">
+                              Người dùng
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
                           {new Date(user.createdAt).toLocaleDateString('vi-VN')}
                         </TableCell>
                         <TableCell className="text-right">
+                          {/* Các nút thao tác: cập nhật trạng thái và xóa */}
                           <div className="flex justify-end gap-2">
+                            <Select
+                              value={user.role}
+                              onValueChange={(value) => handleUpdateRole(user._id, value as 'user' | 'admin')}
+                              disabled={isUpdatingStatus === user._id || isUpdatingRole === user._id}
+                            >
+                              <SelectTrigger className="w-[140px]">
+                                {isUpdatingRole === user._id ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <SelectValue placeholder="Vai trò" />
+                                )}
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="user">Người dùng</SelectItem>
+                                <SelectItem value="admin">Quản trị viên</SelectItem>
+                              </SelectContent>
+                            </Select>
                             <Select
                               value={user.status}
                               onValueChange={(value) => handleUpdateStatus(user._id, value as 'active' | 'inactive' | 'banned')}
-                              disabled={isUpdatingStatus === user._id}
+                              disabled={isUpdatingStatus === user._id || isUpdatingRole === user._id}
                             >
                               <SelectTrigger className="w-[140px]">
                                 {isUpdatingStatus === user._id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SelectValue />}
@@ -402,16 +391,7 @@ export default function AdminUsersPage() {
                                 <SelectItem value="banned">Chặn</SelectItem>
                               </SelectContent>
                             </Select>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => {
-                                setSelectedUser(user);
-                                setPermissionDialogOpen(true);
-                              }}
-                            >
-                              <Shield className="h-4 w-4" />
-                            </Button>
+
                             <Button
                               variant="destructive"
                               size="icon"
@@ -434,14 +414,7 @@ export default function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
-
-      <PermissionDialog
-        open={permissionDialogOpen}
-        onOpenChange={setPermissionDialogOpen}
-        user={selectedUser}
-        permissions={permissions}
-        onSave={handleUpdatePermissions}
-      />
+      {/* AlertDialog xác nhận xóa người dùng */}
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
@@ -461,95 +434,8 @@ export default function AdminUsersPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Component Toaster để hiển thị thông báo */}
       <Toaster />
     </div>
-  );
-}
-
-function PermissionDialog({
-  open,
-  onOpenChange,
-  user,
-  permissions,
-  onSave,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  user: UserWithPermissions | null;
-  permissions: Permission[];
-  onSave: (userId: string, permissionIds: string[]) => void;
-}) {
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
-  
-  useEffect(() => {
-    if (user) {
-      setSelectedPermissions(user.permissions.map((p: any) => p._id));
-    }
-  }, [user]);
-
-  const handleTogglePermission = (permissionId: string) => {
-    setSelectedPermissions((prev) =>
-      prev.includes(permissionId)
-        ? prev.filter((id) => id !== permissionId)
-        : [...prev, permissionId]
-    );
-  };
-
-  const handleSave = async () => {
-    if (user) {
-      setIsSaving(true);
-      try {
-        await onSave(user._id, selectedPermissions);
-      } finally {
-        setIsSaving(false);
-      }
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <UserCog className="h-5 w-5" />
-            Quản lý quyền người dùng
-          </DialogTitle>
-          <DialogDescription>
-            Chọn các quyền cho người dùng <strong>{user?.email}</strong>
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
-          {permissions.map((permission) => (
-            <div key={permission._id} className="flex items-start space-x-3 p-3 rounded-lg border">
-              <Checkbox
-                id={permission._id}
-                checked={selectedPermissions.includes(permission._id)}
-                onCheckedChange={() => handleTogglePermission(permission._id)}
-              />
-              <div className="grid gap-1.5 leading-none flex-1">
-                <Label
-                  htmlFor={permission._id}
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                >
-                  {permission.name}
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  {permission.description}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Hủy
-          </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Lưu thay đổi"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

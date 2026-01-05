@@ -1,7 +1,9 @@
 import { ReviewRepository } from '../repositories/reviewRepository.js';
+import { CentersRepository } from '../repositories/centersRepository.js';
 
 // Khởi tạo một instance của ReviewRepository để sử dụng trong service.
 const reviewRepository = new ReviewRepository();
+const centersRepository = new CentersRepository();
 
 // Lớp ReviewService chứa business logic cho các hoạt động liên quan đến đánh giá.
 // Hiện tại, lớp này chủ yếu đóng vai trò trung gian, gọi các phương thức từ repository.
@@ -19,7 +21,19 @@ export class ReviewService {
 
   // Xóa một bài đánh giá.
   async deleteReview(reviewId) {
-    return await reviewRepository.delete(reviewId);
+    const review = await reviewRepository.findById(reviewId);
+    if (review) {
+      await reviewRepository.delete(reviewId);
+      await centersRepository.updateCenterStatistics(review.center);
+    }
+  }
+
+  async updateReviewStatus(reviewId, status) {
+    const updatedReview = await reviewRepository.update(reviewId, { status });
+    if (updatedReview) {
+      await centersRepository.updateCenterStatistics(updatedReview.center);
+    }
+    return updatedReview;
   }
 
   // Lấy các bài đánh giá của một trung tâm cụ thể.

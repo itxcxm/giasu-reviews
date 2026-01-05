@@ -19,6 +19,12 @@ router.get("/user/:userId", authMiddleware, reviewController.getUserReviews);
 // DELETE /api/reviews/:reviewId
 router.delete("/:reviewId", adminMiddleware, reviewController.deleteReview);
 
+// Cập nhật trạng thái của một bài đánh giá.
+// Chỉ admin mới có quyền truy cập.
+// PATCH /api/reviews/:reviewId/status
+router.patch("/:reviewId/status", adminMiddleware, reviewController.updateReviewStatus);
+
+
 // Lấy tất cả các bài đánh giá của một trung tâm cụ thể.
 // Route này công khai, không yêu cầu xác thực.
 // GET /api/reviews/center/:centerId

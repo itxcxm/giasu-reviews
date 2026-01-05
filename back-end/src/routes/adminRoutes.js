@@ -49,6 +49,10 @@ router.get("/users", adminMiddleware, adminController.getUsers);
 // DELETE /api/admin/users/:id
 router.delete("/users/:id", adminMiddleware, adminController.deleteUser);
 
+// Route để cập nhật một phần thông tin người dùng (vd: vai trò).
+// PATCH /api/admin/users/:id
+router.patch("/users/:id", adminMiddleware, adminController.updateUser);
+
 // Route để cập nhật trạng thái của người dùng (active, inactive, banned).
 // PATCH /api/admin/users/:id/status
 router.patch("/users/:id/status", adminMiddleware, adminController.updateUserStatus);

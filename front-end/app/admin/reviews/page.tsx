@@ -32,7 +32,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Trash2, Search, ChevronLeft, ChevronRight, Star, Upload, X, FileText } from 'lucide-react';
+import { Plus, Trash2, Search, ChevronLeft, ChevronRight, Star, Upload, X, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
@@ -40,7 +40,7 @@ import { reviewsApi, Review } from '@/lib/api';
 
 // Định nghĩa kiểu dữ liệu review có thêm cờ trạng thái và tên học viên
 interface ReviewWithStatus extends Review {
-  status?: 'approved' | 'pending' | 'rejected';
+  status: 'approved' | 'pending' | 'rejected';
   studentName?: string;
 }
 
@@ -53,7 +53,7 @@ export default function AdminReviewsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'rejected'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -88,11 +88,9 @@ export default function AdminReviewsPage() {
         sortOrder: 'desc',
       });
       
-      // Chuyển đổi dữ liệu review: gắn status + tên học viên lấy từ reviewerName
       const transformedReviews: ReviewWithStatus[] = (response.data || []).map((review: Review) => ({
         ...review,
-        // Giả định toàn bộ review load được từ API đã được duyệt
-        status: 'approved' as const, // Có thể mở rộng về sau để hỗ trợ duyệt nếu có trường status
+        status: review.status || 'pending',
         studentName: review.user?.name || 'Người dùng',
       }));
 
@@ -103,6 +101,23 @@ export default function AdminReviewsPage() {
       setError('Không thể tải danh sách đánh giá');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateStatus = async (reviewId: string, status: 'approved' | 'rejected') => {
+    const originalReviews = [...reviews];
+    
+    // Optimistic update
+    setReviews(reviews.map(r => r._id === reviewId ? { ...r, status } : r));
+
+    try {
+      await reviewsApi.updateReviewStatus(reviewId, status);
+      // No need to call loadReviews() again because of optimistic update
+    } catch (error) {
+      console.error('Error updating review status:', error);
+      // Revert on error
+      setReviews(originalReviews);
+      alert('Không thể cập nhật trạng thái. Vui lòng thử lại.');
     }
   };
 
@@ -251,6 +266,8 @@ export default function AdminReviewsPage() {
     switch (status) {
       case 'approved':
         return 'default';
+      case 'pending':
+        return 'secondary';
       case 'rejected':
         return 'destructive';
       default:
@@ -261,10 +278,14 @@ export default function AdminReviewsPage() {
   // Hàm trả về nhãn trạng thái bằng tiếng Việt cho review
   const getStatusLabel = (status?: string) => {
     switch (status) {
+      case 'approved':
+        return 'Đã duyệt';
+      case 'pending':
+        return 'Chờ duyệt';
       case 'rejected':
         return 'Từ chối';
       default:
-        return '';
+        return 'Chờ duyệt';
     }
   };
 
@@ -399,12 +420,14 @@ export default function AdminReviewsPage() {
           <select
             value={statusFilter}
             onChange={(e) => {
-              setStatusFilter(e.target.value as 'all' | 'rejected');
+              setStatusFilter(e.target.value as 'all' | 'pending' | 'approved' | 'rejected');
               setCurrentPage(1);
             }}
             className="h-10 px-3 py-2 rounded-md border border-input bg-background text-sm"
           >
             <option value="all">Tất cả trạng thái</option>
+            <option value="pending">Chờ duyệt</option>
+            <option value="approved">Đã duyệt</option>
             <option value="rejected">Từ chối</option>
           </select>
         </div>
@@ -418,6 +441,7 @@ export default function AdminReviewsPage() {
                 <TableHead className="w-[50px]">ID</TableHead>
                 <TableHead>Trung tâm</TableHead>
                 <TableHead>Học viên</TableHead>
+                <TableHead>Trạng thái</TableHead>
                 <TableHead className="text-center">Đánh giá</TableHead>
                 <TableHead className="max-w-[250px]">Nhận xét</TableHead>
                 <TableHead className="text-right">Thao tác</TableHead>
@@ -455,6 +479,11 @@ export default function AdminReviewsPage() {
                     </TableCell>
                     <TableCell className="font-medium">{review.centerName || 'N/A'}</TableCell>
                     <TableCell>{review.studentName || 'Người dùng'}</TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusBadgeVariant(review.status)}>
+                        {getStatusLabel(review.status)}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1">
                         {/* Hiển thị số sao đánh giá */}
@@ -471,6 +500,26 @@ export default function AdminReviewsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        {review.status === 'pending' && (
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => handleUpdateStatus(review._id!, 'approved')}>
+                              <CheckCircle className="h-4 w-4 mr-1" /> Duyệt
+                            </Button>
+                            <Button variant="destructive" size="sm" onClick={() => handleUpdateStatus(review._id!, 'rejected')}>
+                              <XCircle className="h-4 w-4 mr-1" /> Từ chối
+                            </Button>
+                          </>
+                        )}
+                        {review.status === 'approved' && (
+                          <Button variant="destructive" size="sm" onClick={() => handleUpdateStatus(review._id!, 'rejected')}>
+                            <XCircle className="h-4 w-4 mr-1" /> Từ chối
+                          </Button>
+                        )}
+                        {review.status === 'rejected' && (
+                          <Button variant="outline" size="sm" onClick={() => handleUpdateStatus(review._id!, 'approved')}>
+                            <CheckCircle className="h-4 w-4 mr-1" /> Duyệt lại
+                          </Button>
+                        )}
                         {/* Nút mở dialog xem chi tiết review */}
                         <Button
                           variant="outline"

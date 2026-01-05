@@ -6,7 +6,7 @@ import {
   uploadSingleImage,
   handleUploadError,
 } from "../middlewares/upload.js";
-import { addReviewRateLimiter } from "../middlewares/rateLimit.js";
+import { checkReviewLimit } from "../middlewares/reviewLimit.js";
 
 const router = Router();
 
@@ -72,7 +72,7 @@ router.post(
   authMiddleware,
   uploadMultipleImages,
   handleUploadError,
-  addReviewRateLimiter, // Áp dụng giới hạn số lượng request thêm review.
+  checkReviewLimit, // Áp dụng giới hạn số lượng review mỗi user cho 1 trung tâm.
   centersController.addReview
 );
 

@@ -107,7 +107,6 @@ export interface Center {
   image?: string;
   rating: number;
   totalReviews: number;
-  averageRating: number;
   isVerified?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -269,6 +268,11 @@ export const adminApi = {
   // Xóa người dùng
   async deleteUser(userId: string): Promise<void> {
     await apiClient.delete(`/api/admin/users/${userId}`);
+  },
+
+  // Cập nhật thông tin người dùng (vd: vai trò)
+  async updateUser(userId: string, data: { role?: 'user' | 'admin'; name?: string; status?: string }): Promise<void> {
+    await apiClient.patch(`/api/admin/users/${userId}`, data);
   },
 
   // Cập nhật trạng thái người dùng
@@ -434,6 +438,12 @@ export const reviewsApi = {
   // Xóa review từ center (admin)
   async deleteReview(reviewId: string): Promise<{ success: boolean; message?: string }> {
     const response = await apiClient.delete(`/api/reviews/${reviewId}`);
+    return response.data;
+  },
+
+  // Cập nhật trạng thái review (admin)
+  async updateReviewStatus(reviewId: string, status: 'approved' | 'rejected'): Promise<{ success: boolean; message?: string }> {
+    const response = await apiClient.patch(`/api/reviews/${reviewId}/status`, { status });
     return response.data;
   },
 

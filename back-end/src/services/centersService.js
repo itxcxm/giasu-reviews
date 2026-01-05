@@ -92,6 +92,7 @@ export class CentersService {
       if (!review) {
         return null;
       }
+      await this.centersRepository.updateCenterStatistics(centerId);
       return review;
     } catch (error) {
       console.error("Lỗi ở service khi thêm đánh giá:", error);

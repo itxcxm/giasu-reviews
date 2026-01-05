@@ -65,6 +65,26 @@ class ReviewController {
     }
   };
 
+  updateReviewStatus = async (req, res) => {
+    try {
+      const { reviewId } = req.params;
+      const { status } = req.body;
+
+      if (!['approved', 'rejected'].includes(status)) {
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, message: 'Trạng thái không hợp lệ.' });
+      }
+
+      await reviewService.updateReviewStatus(reviewId, status);
+
+      res.status(HTTP_STATUS.OK).json({ success: true, message: 'Cập nhật trạng thái đánh giá thành công.' });
+    } catch (error) {
+      console.error("Lỗi khi cập nhật trạng thái đánh giá:", error);
+      res
+        .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+        .json({ success: false, message: "Không thể cập nhật trạng thái đánh giá." });
+    }
+  };
+
   // Lấy tất cả các bài đánh giá của một trung tâm cụ thể.
   getCenterReviews = async (req, res) => {
     try {

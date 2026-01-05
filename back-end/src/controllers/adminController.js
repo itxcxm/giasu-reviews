@@ -72,6 +72,40 @@ export class AdminController {
       });
     }
   };
+  updateUser = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+
+      // Lọc ra các trường không được phép cập nhật để bảo mật
+      const allowedUpdates = ['name', 'role', 'status'];
+      const finalUpdateData = {};
+      for (const key of allowedUpdates) {
+        if (updateData[key] !== undefined) {
+          finalUpdateData[key] = updateData[key];
+        }
+      }
+
+      if (Object.keys(finalUpdateData).length === 0) {
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({
+          success: false,
+          message: "Không có dữ liệu hợp lệ để cập nhật.",
+        });
+      }
+
+      await this.userService.updateUser(id, finalUpdateData);
+
+      return res.status(HTTP_STATUS.OK).json({
+        success: true,
+        message: "Cập nhật người dùng thành công",
+      });
+    } catch (error) {
+      return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Lỗi khi cập nhật người dùng",
+      });
+    }
+  };
   updateUserStatus = async (req, res) => {
     try {
       const { id } = req.params;

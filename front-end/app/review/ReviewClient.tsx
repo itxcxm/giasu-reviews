@@ -79,6 +79,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
         if (response.success) {
           setReviews(response.data);
         }
+        console.log(response)
       } catch (error) {
         console.error("Failed to fetch reviews", error);
         toast.error("Không thể tải danh sách đánh giá.");
@@ -88,6 +89,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
     if (center._id) {
       fetchReviews();
     }
+    
   }, [center._id]);
 
   // Tính toán phân bố đánh giá từ reviews thực tế
@@ -319,6 +321,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
     } finally {
       setSubmitting(false);
     }
+    
   };
 
   // Render giao diện component
@@ -347,7 +350,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                     <div className="flex items-center gap-1">
                       <Star className="w-5 h-5 fill-yellow-500 text-yellow-500" />
                       <span className="font-semibold text-lg">{center.rating || 0}</span>
-                      <span className="text-sm">({reviews.length || 0} đánh giá)</span>
+                      <span className="text-sm">({center.totalReviews} đánh giá)</span>
                     </div>
                   </div>
                 </div>
@@ -515,7 +518,7 @@ export default function ReviewClient({ center }: ReviewClientProps) {
                         />
                       ))}
                     </div>
-                    <p className="text-slate-600">{reviews.length || 0} đánh giá</p>
+                    <p className="text-slate-600">{center.totalReviews} đánh giá</p>
                   </div>
                   <div className="space-y-3">
                     {ratingDistribution.map((dist) => (

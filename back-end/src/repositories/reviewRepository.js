@@ -64,43 +64,34 @@ export class ReviewRepository {
     }
   }
 
+  async findById(reviewId) {
+    try {
+      const review = await Review.findById(reviewId).lean();
+      return review;
+    } catch (error) {
+      console.error("Lỗi khi tìm đánh giá theo ID:", error);
+      throw error;
+    }
+  }
+
+  async update(reviewId, updateData) {
+    try {
+      const review = await Review.findByIdAndUpdate(
+        reviewId,
+        { $set: updateData },
+        { new: true, runValidators: true }
+      ).lean();
+      return review;
+    } catch (error) {
+      console.error("Lỗi khi cập nhật đánh giá:", error);
+      throw error;
+    }
+  }
+
   // Xóa một bài đánh giá và cập nhật lại thống kê của trung tâm liên quan.
   async delete(reviewId) {
     try {
-      const review = await Review.findById(reviewId);
-      if (!review) {
-        throw new Error("Không tìm thấy bài đánh giá.");
-      }
-      const centerId = review.center;
-
-      // Xóa bài đánh giá.
       await Review.findByIdAndDelete(reviewId);
-
-      // Tính toán lại điểm trung bình và số lượng đánh giá cho trung tâm.
-      const stats = await Review.aggregate([
-        { $match: { center: centerId, status: 'approved' } }, // Chỉ tính các review đã được duyệt.
-        {
-          $group: {
-            _id: '$center',
-            totalReviews: { $sum: 1 },
-            averageRating: { $avg: '$rating' },
-          },
-        },
-      ]);
-
-      // Cập nhật lại trung tâm với các chỉ số mới.
-      if (stats.length > 0) {
-        await Center.findByIdAndUpdate(centerId, {
-          reviewCount: stats[0].totalReviews,
-          rating: parseFloat(stats[0].averageRating.toFixed(1)),
-        });
-      } else {
-        // Nếu không còn review nào, reset các chỉ số về 0.
-        await Center.findByIdAndUpdate(centerId, {
-          reviewCount: 0,
-          rating: 0,
-        });
-      }
     } catch (error) {
       console.error("Lỗi khi xóa đánh giá:", error);
       throw error;

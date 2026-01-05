@@ -41,14 +41,47 @@ export class CentersRepository {
       // Tính toán số document cần bỏ qua để phân trang.
       const skip = (page - 1) * limit;
 
-      // Thực thi truy vấn để lấy danh sách trung tâm.
-      // `.lean()` để trả về plain JavaScript objects thay vì Mongoose documents, giúp tăng hiệu suất.
-      const centers = await Center.find(query)
-        .sort(sort)
-        .skip(skip)
-        .limit(parseInt(limit))
-        .lean();
+      const aggregation = [
+        { $match: query },
+        {
+          $lookup: {
+            from: "reviews",
+            let: { centerId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$center", "$$centerId"] },
+                      { $eq: ["$status", "approved"] },
+                    ],
+                  },
+                },
+              },
+            ],
+            as: "approvedReviews",
+          },
+        },
+        {
+          $addFields: {
+            totalReviews: { $size: "$approvedReviews" },
+            rating: {
+              $ifNull: [{ $round: [{ $avg: "$approvedReviews.rating" }, 1] }, 0],
+            },
+          },
+        },
+        {
+          $project: {
+            approvedReviews: 0,
+          },
+        },
+        { $sort: sort },
+        { $skip: skip },
+        { $limit: parseInt(limit) },
+      ];
 
+      const centers = await Center.aggregate(aggregation);
+      
       // Đếm tổng số document khớp với query để tính toán thông tin phân trang.
       const total = await Center.countDocuments(query);
 
@@ -70,8 +103,52 @@ export class CentersRepository {
   // Tìm một trung tâm duy nhất bằng ID.
   async findById(id) {
     try {
-      const center = await Center.findById(id).lean();
-      return center;
+      const aggregation = [
+        { $match: { _id: new mongoose.Types.ObjectId(id) } },
+        {
+          $lookup: {
+            from: "reviews",
+            let: { centerId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$center", "$$centerId"] },
+                      { $eq: ["$status", "approved"] },
+                    ],
+                  },
+                },
+              },
+            ],
+            as: "approvedReviews",
+          },
+        },
+        {
+          $project: {
+            name: 1,
+            address: 1,
+            phone: 1,
+            website: 1,
+            image: 1,
+            isVerified: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            totalReviews: { $size: "$approvedReviews" },
+            rating: {
+              $ifNull: [{ $round: [{ $avg: "$approvedReviews.rating" }, 1] }, 0],
+            },
+          },
+        },
+      ];
+
+      const results = await Center.aggregate(aggregation);
+      
+      if (results.length === 0) {
+        return null;
+      }
+      
+      return results[0];
     } catch (error) {
       console.error("Lỗi khi tìm trung tâm theo ID:", error);
       throw error;
@@ -138,9 +215,16 @@ export class CentersRepository {
       });
 
       await newReview.save();
+          
+      return newReview.toObject();
+    } catch (error) {
+      console.error("Lỗi khi thêm đánh giá:", error);
+      throw error;
+    }
+  }
 
-      // Sử dụng aggregation pipeline để tính toán lại số lượng và điểm trung bình.
-      // Chỉ tính các review đã được 'approved'.
+  async updateCenterStatistics(centerId) {
+    try {
       const stats = await Review.aggregate([
         { $match: { center: new mongoose.Types.ObjectId(centerId), status: 'approved' } },
         {
@@ -152,24 +236,20 @@ export class CentersRepository {
         },
       ]);
       
-      // Cập nhật lại trung tâm với các số liệu thống kê mới.
       if (stats.length > 0) {
         await Center.findByIdAndUpdate(centerId, {
-          reviewCount: stats[0].totalReviews, // Cập nhật tên trường cho đúng với model
-          rating: parseFloat(stats[0].averageRating.toFixed(1)), // Cập nhật tên trường
+          reviewCount: stats[0].totalReviews,
+          rating: parseFloat(stats[0].averageRating.toFixed(1)),
         });
       } else {
-        // Nếu không còn review nào, reset các chỉ số.
          await Center.findByIdAndUpdate(centerId, {
           reviewCount: 0,
           rating: 0,
         });
       }
-          
-      return newReview.toObject();
     } catch (error) {
-      console.error("Lỗi khi thêm đánh giá:", error);
-      throw error;
+      console.error("Lỗi khi cập nhật thống kê trung tâm:", error);
+      // Không re-throw lỗi ở đây để không làm gián đoạn luồng chính
     }
   }
 
@@ -228,31 +308,7 @@ export class CentersRepository {
   async deleteReview(centerId, reviewId) {
     try {
       await Review.findByIdAndDelete(reviewId);
-
-      // Tính toán lại các chỉ số sau khi xóa.
-      const stats = await Review.aggregate([
-        { $match: { center: new mongoose.Types.ObjectId(centerId), status: 'approved' } },
-        {
-          $group: {
-            _id: '$center',
-            totalReviews: { $sum: 1 },
-            averageRating: { $avg: '$rating' },
-          },
-        },
-      ]);
-
-      if (stats.length > 0) {
-        await Center.findByIdAndUpdate(centerId, {
-          reviewCount: stats[0].totalReviews, // Cập nhật tên trường
-          rating: parseFloat(stats[0].averageRating.toFixed(1)), // Cập nhật tên trường
-        });
-      } else {
-        await Center.findByIdAndUpdate(centerId, {
-          reviewCount: 0,
-          rating: 0,
-        });
-      }
-
+      await this.updateCenterStatistics(centerId);
       return true;
     } catch (error) {
       console.error("Lỗi khi xóa đánh giá:", error);

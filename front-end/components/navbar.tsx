@@ -107,6 +107,10 @@ export function Navbar() {
                   </Link>
                 )}
 
+                <Link href="/add-center">
+                  <Button variant="ghost">Thêm trung tâm</Button>
+                </Link>
+
                 <Link href="/account">
                   <Button variant="ghost" className="gap-2">
                     <UserIcon className="h-4 w-4" />
@@ -157,6 +161,12 @@ export function Navbar() {
                     </Button>
                   </Link>
                 )}
+
+                <Link href="/add-center" onClick={() => setIsMobileMenuOpen(false)}>
+                  <Button variant="ghost" className="w-full justify-start">
+                    Thêm trung tâm
+                  </Button>
+                </Link>
 
                 <Link
                   href="/account"

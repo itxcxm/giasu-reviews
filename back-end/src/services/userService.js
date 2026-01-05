@@ -73,6 +73,10 @@ export class UserService {
     return this.userRepository.deleteUserById(userId);
   }
 
+  async updateUser(userId, updateData) {
+    return this.userRepository.updateUserById(userId, updateData);
+  }
+
   async updateUserStatus(userId, status) {
     return this.userRepository.updateUserById(userId, { status });
   }

@@ -45,7 +45,7 @@ const reviewSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"], // Chỉ chấp nhận một trong ba giá trị này.
-      default: "pending", // Mặc định là 'chờ duyệt' khi mới tạo.
+      default: "approved", // Mặc định là 'đã duyệt' khi mới tạo.
     },
     // Cờ đánh dấu bài đánh giá đã từng được chỉnh sửa hay chưa.
     isEdited: {

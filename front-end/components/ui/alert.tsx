@@ -8,8 +8,10 @@ const alertVariants = cva(
   {
     variants: {
       variant: {
+        // Biến thể mặc định của alert
         default: 'bg-background text-foreground',
         destructive:
+          // Biến thể destructive (nguy hiểm) với màu sắc và viền đặc trưng
           'border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive',
       },
     },
@@ -23,6 +25,7 @@ const Alert = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants>
 >(({ className, variant, ...props }, ref) => (
+  // Render div với các lớp CSS được tạo bởi alertVariants và className tùy chỉnh
   <div
     ref={ref}
     role="alert"
@@ -30,6 +33,7 @@ const Alert = React.forwardRef<
     {...props}
   />
 ));
+// Đặt tên hiển thị cho component Alert
 Alert.displayName = 'Alert';
 
 const AlertTitle = React.forwardRef<
@@ -37,11 +41,13 @@ const AlertTitle = React.forwardRef<
   React.HTMLAttributes<HTMLHeadingElement>
 >(({ className, ...props }, ref) => (
   <h5
+    // Render h5 với các lớp CSS cho tiêu đề alert
     ref={ref}
     className={cn('mb-1 font-medium leading-none tracking-tight', className)}
     {...props}
   />
 ));
+// Đặt tên hiển thị cho component AlertTitle
 AlertTitle.displayName = 'AlertTitle';
 
 const AlertDescription = React.forwardRef<
@@ -49,11 +55,13 @@ const AlertDescription = React.forwardRef<
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, ...props }, ref) => (
   <div
+    // Render div với các lớp CSS cho mô tả alert
     ref={ref}
     className={cn('text-sm [&_p]:leading-relaxed', className)}
     {...props}
   />
 ));
+// Đặt tên hiển thị cho component AlertDescription
 AlertDescription.displayName = 'AlertDescription';
 
 export { Alert, AlertTitle, AlertDescription };
