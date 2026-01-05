@@ -434,7 +434,7 @@ export default function AdminReviewsPage() {
 
         {/* Table */}
         {/* Bảng danh sách đánh giá đã lọc/phân trang */}
-        <div className="rounded-md border">
+        <div className="rounded-md border overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>

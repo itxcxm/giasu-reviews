@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, Users, X, Upload } from 'lucide-react';
+import { ArrowLeft, X, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -253,18 +253,10 @@ export default function AddCenterPage() {
   // Giao diện trang thêm trung tâm
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      {/* Phần header - Thanh trên cùng */}
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-lg flex items-center justify-center">
-                <Users className="w-6 h-6 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                Đánh Giá Gia Sư
-              </h1>
-            </Link>
+      {/* Phần nội dung chính */}
+      <main className="container mx-auto px-4 py-12">
+        <div className="max-w-3xl mx-auto">
+          <div className="mb-6">
             <Link href="/">
               <Button variant="outline">
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -272,12 +264,7 @@ export default function AddCenterPage() {
               </Button>
             </Link>
           </div>
-        </div>
-      </header>
 
-      {/* Phần nội dung chính */}
-      <main className="container mx-auto px-4 py-12">
-        <div className="max-w-3xl mx-auto">
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-slate-900 mb-2">
               Thêm Trung Tâm Gia Sư Mới
@@ -309,7 +296,7 @@ export default function AddCenterPage() {
                     value={formData.name}
                     onChange={handleInputChange}
                     required
-                    className="text-base"
+                    className="w-full text-base"
                   />
                 </div>
 
@@ -322,7 +309,7 @@ export default function AddCenterPage() {
                     placeholder="Số nhà, tên đường, quận/huyện, thành phố"
                     value={formData.address}
                     onChange={handleInputChange}
-                    className="text-base"
+                    className="w-full text-base"
                   />
                 </div>
 
@@ -336,7 +323,7 @@ export default function AddCenterPage() {
                     placeholder="0123 456 789"
                     value={formData.phone}
                     onChange={handleInputChange}
-                    className="text-base"
+                    className="w-full text-base"
                   />
                 </div>
 
@@ -350,7 +337,7 @@ export default function AddCenterPage() {
                     placeholder="https://example.com"
                     value={formData.website}
                     onChange={handleInputChange}
-                    className="text-base"
+                    className="w-full text-base"
                   />
                 </div>
 
