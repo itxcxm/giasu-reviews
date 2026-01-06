@@ -1,7 +1,7 @@
 'use client';
 
 // Các import của thư viện cần thiết
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -31,28 +31,6 @@ export default function AddCenterPage() {
     phone: '',
     website: '',
   });
-
-  // Trạng thái authentication
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-
-  // Check authentication khi component mount
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    try {
-      setAuthLoading(true);
-      const response = await userApi.checkAuth();
-      setIsAuthenticated(response.authenticated);
-    } catch (error) {
-      console.error('Auth check error:', error);
-      setIsAuthenticated(false);
-    } finally {
-      setAuthLoading(false);
-    }
-  };
 
   // Xử lý thay đổi dữ liệu đầu vào trong form
   const handleInputChange = (
@@ -178,56 +156,9 @@ export default function AddCenterPage() {
     setImagePreview(null);
   };
 
-  // Function gửi request về back-end
-  const submitCenterData = async () => {
-    try {
-      setLoading(true);
-
-      // Gửi file trực tiếp thay vì base64
-      const response = await centersApi.createCenter({
-        name: formData.name.trim(),
-        address: formData.address.trim() || undefined,
-        phone: formData.phone.trim() || undefined,
-        website: formData.website.trim() || undefined,
-        imageFile: imageFile || undefined,
-      });
-
-      // Kiểm tra response thành công
-      if (response.success) {
-        toast({
-          title: 'Thành công!',
-          description: 'Trung tâm đã được thêm thành công. Trung tâm của bạn đang chờ được duyệt bởi quản trị viên trước khi hiển thị trên trang chủ.',
-          duration: 5000, // Hiển thị lâu hơn để user đọc được
-        });
-
-        // Chuyển về trang chủ sau 2 giây
-        setTimeout(() => {
-          router.push('/');
-        }, 2000);
-      } else {
-        throw new Error(response.message || 'Không thể thêm trung tâm');
-      }
-    } catch (error: any) {
-      console.error('Error creating center:', error);
-      throw error; // Re-throw để handleSubmit xử lý
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Xử lý gửi form thêm trung tâm
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Kiểm tra trạng thái đăng nhập
-    if (isAuthenticated === false) {
-      toast({
-        title: 'Yêu cầu đăng nhập',
-        description: 'Người dùng chưa đăng nhập. Vui lòng đăng nhập để thêm trung tâm.',
-        variant: 'destructive',
-      });
-      return;
-    }
 
     // Validation
     if (!formData.name.trim()) {
@@ -240,13 +171,41 @@ export default function AddCenterPage() {
     }
 
     try {
-      await submitCenterData();
+      setLoading(true);
+      
+      const response = await centersApi.createCenter({
+        name: formData.name.trim(),
+        address: formData.address.trim() || undefined,
+        phone: formData.phone.trim() || undefined,
+        website: formData.website.trim() || undefined,
+        imageFile: imageFile || undefined,
+      });
+
+      // Kiểm tra response thành công
+      if (response.success) {
+        toast({
+          title: 'Thành công!',
+          description: 'Trung tâm đã được thêm và đang chờ duyệt. Cảm ơn bạn đã đóng góp!',
+          duration: 5000,
+        });
+
+        // Chuyển về trang chủ sau 2 giây
+        setTimeout(() => {
+          router.push('/');
+        }, 2000);
+      } else {
+        throw new Error(response.message || 'Không thể thêm trung tâm');
+      }
+
     } catch (error: any) {
+      // Bắt lỗi từ checkAuth hoặc createCenter
       toast({
         title: 'Lỗi',
         description: error.message || 'Không thể thêm trung tâm. Vui lòng thử lại.',
         variant: 'destructive',
       });
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -410,9 +369,9 @@ export default function AddCenterPage() {
                     type="submit" 
                     size="lg" 
                     className="flex-1" 
-                    disabled={loading || authLoading || isAuthenticated === false}
+                    disabled={loading}
                   >
-                    {authLoading ? 'Đang kiểm tra...' : loading ? 'Đang xử lý...' : 'Thêm Trung Tâm'}
+                    {loading ? 'Đang xử lý...' : 'Thêm Trung Tâm'}
                   </Button>
                   <Button
                     type="button"
@@ -424,18 +383,6 @@ export default function AddCenterPage() {
                     Hủy
                   </Button>
                 </div>
-
-                {/* Thông báo nếu chưa đăng nhập */}
-                {isAuthenticated === false && !authLoading && (
-                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-red-700 text-sm">
-                      <strong>Lưu ý:</strong> Bạn cần đăng nhập để thêm trung tâm. 
-                      <Link href="/login" className="text-red-600 hover:text-red-800 underline ml-1">
-                        Đăng nhập ngay
-                      </Link>
-                    </p>
-                  </div>
-                )}
               </form>
             </CardContent>
           </Card>

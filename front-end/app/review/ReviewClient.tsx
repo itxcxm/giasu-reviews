@@ -307,7 +307,15 @@ export default function ReviewClient({ center }: ReviewClientProps) {
       });
 
       if (response.success && response.data) {
-        setReviews(prev => [response.data, ...prev]);
+        // BUG FIX: The backend might incorrectly return a rating of 5.
+        // We create a new review object for the UI using the server's response
+        // but explicitly override the rating with the one selected by the user.
+        const newReviewForUI = {
+          ...response.data,
+          rating: selectedRating,
+        };
+        
+        setReviews(prev => [newReviewForUI, ...prev]);
         toast.success('Đánh giá của bạn đã được gửi thành công!');
         setReviewText('');
         setSelectedRating(5);
