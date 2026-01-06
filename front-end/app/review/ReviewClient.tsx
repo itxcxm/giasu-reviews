@@ -302,9 +302,10 @@ export default function ReviewClient({ center }: ReviewClientProps) {
 
       const response = await centersApi.addReview(center._id || center.id || '', {
         rating: selectedRating,
+        stars: selectedRating,
         comment: reviewText.trim(),
         images: files.length > 0 ? files : undefined,
-      });
+      } as any);
 
       if (response.success && response.data) {
         // BUG FIX: The backend might incorrectly return a rating of 5.
