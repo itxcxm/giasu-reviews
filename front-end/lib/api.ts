@@ -443,6 +443,12 @@ export const reviewsApi = {
     return response.data;
   },
 
+  // Người dùng tự xóa bài đánh giá của chính họ
+  async deleteOwnReview(reviewId: string): Promise<{ success: boolean; message?: string }> {
+    const response = await apiClient.delete(`/api/reviews/me/${reviewId}`);
+    return response.data;
+  },
+
   // Cập nhật trạng thái review (admin)
   async updateReviewStatus(reviewId: string, status: 'approved' | 'rejected'): Promise<{ success: boolean; message?: string }> {
     const response = await apiClient.patch(`/api/reviews/${reviewId}/status`, { status });

@@ -19,6 +19,12 @@ router.get("/user/:userId", authMiddleware, reviewController.getUserReviews);
 // DELETE /api/reviews/:reviewId
 router.delete("/:reviewId", adminMiddleware, reviewController.deleteReview);
 
+// Người dùng tự xóa bài đánh giá của chính họ.
+// Yêu cầu người dùng phải đăng nhập.
+// DELETE /api/reviews/me/:reviewId
+router.delete("/me/:reviewId", authMiddleware, reviewController.deleteOwnReview);
+
+
 // Cập nhật trạng thái của một bài đánh giá.
 // Chỉ admin mới có quyền truy cập.
 // PATCH /api/reviews/:reviewId/status

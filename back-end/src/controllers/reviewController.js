@@ -65,6 +65,30 @@ class ReviewController {
     }
   };
 
+  // Người dùng tự xóa bài đánh giá của chính họ.
+  deleteOwnReview = async (req, res) => {
+    try {
+        const { reviewId } = req.params;
+        const userId = req.user.id; // Lấy từ authMiddleware
+
+        if (!userId) {
+            return res.status(HTTP_STATUS.UNAUTHORIZED).json({ success: false, message: "Yêu cầu xác thực." });
+        }
+
+        await reviewService.deleteOwnReview(reviewId, userId);
+        res.status(HTTP_STATUS.OK).json({ success: true, message: "Đã xóa đánh giá của bạn thành công." });
+    } catch (error) {
+        console.error("Lỗi khi người dùng xóa đánh giá:", error);
+        
+        if (error.message === 'Forbidden') {
+             return res.status(HTTP_STATUS.FORBIDDEN).json({ success: false, message: "Bạn không có quyền xóa đánh giá này." });
+        }
+        
+        res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ success: false, message: "Không thể xóa đánh giá." });
+    }
+  };
+
+
   updateReviewStatus = async (req, res) => {
     try {
       const { reviewId } = req.params;

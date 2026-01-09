@@ -11,6 +11,23 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -21,10 +38,20 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
-import { Search, ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import {
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { centersApi, Center } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 // Mở rộng Center để có trạng thái hiển thị cho admin
 interface CenterWithStatus extends Center {
@@ -38,7 +65,6 @@ interface PaginationState {
   total: number;
   totalPages: number;
 }
-
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -58,6 +84,7 @@ function useDebounce<T>(value: T, delay: number): T {
 const ITEMS_PER_PAGE = 10;
 
 export default function AdminCentersPage() {
+  const router = useRouter();
   /* ---------------- STATE ---------------- */
 
   // Danh sách center hiển thị trong bảng
@@ -75,8 +102,9 @@ export default function AdminCentersPage() {
 
   // Tìm kiếm + lọc
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] =
-    useState<'all' | 'active' | 'inactive'>('all');
+  const [statusFilter, setStatusFilter] = useState<
+    'all' | 'active' | 'inactive'
+  >('all');
   const [currentPage, setCurrentPage] = useState(1);
 
   // Giá trị search đã debounce
@@ -86,6 +114,11 @@ export default function AdminCentersPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deletingCenterId, setDeletingCenterId] = useState<string | null>(null);
 
+  // Dialog sửa
+  const [editingCenter, setEditingCenter] = useState<CenterWithStatus | null>(
+    null
+  );
+
   const loadCenters = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -93,9 +126,7 @@ export default function AdminCentersPage() {
     try {
       // Chuyển filter UI sang isVerified cho backend
       const isVerified =
-        statusFilter === 'all'
-          ? undefined
-          : statusFilter === 'active';
+        statusFilter === 'all' ? undefined : statusFilter === 'active';
 
       // Gọi API lấy danh sách center có phân trang
       const response = await centersApi.getCenters({
@@ -137,7 +168,6 @@ export default function AdminCentersPage() {
     loadCenters();
   }, [loadCenters]);
 
-
   // Mở dialog xác nhận xóa
   const handleDelete = (center: CenterWithStatus) => {
     if (!center._id) return;
@@ -163,6 +193,39 @@ export default function AdminCentersPage() {
     } finally {
       setIsDeleteDialogOpen(false);
       setDeletingCenterId(null);
+    }
+  };
+
+    // Mở dialog sửa
+  const handleEdit = (center: CenterWithStatus) => {
+    setEditingCenter(center);
+  };
+
+  // Lưu thay đổi từ dialog sửa
+  const handleSave = async () => {
+    if (!editingCenter?._id) return;
+
+    const originalCenter = centers.find(c => c._id === editingCenter._id);
+
+    try {
+      // 1. Cập nhật thông tin cơ bản (tên, địa chỉ, web)
+      const { name, address, website } = editingCenter;
+      const updateData = { name, address, website };
+
+      await centersApi.updateCenter(editingCenter._id, updateData);
+
+      // 2. Cập nhật trạng thái (nếu có thay đổi)
+      const statusHasChanged = originalCenter?.status !== editingCenter.status;
+      if (statusHasChanged) {
+        await centersApi.verifyCenter(editingCenter._id, editingCenter.status === 'active');
+      }
+
+      setEditingCenter(null);
+      await loadCenters(); // Tải lại dữ liệu để thấy thay đổi
+
+    } catch (err) {
+      console.error('Lỗi khi cập nhật trung tâm:', err);
+      alert('Đã xảy ra lỗi. Vui lòng thử lại.');
     }
   };
 
@@ -202,7 +265,7 @@ export default function AdminCentersPage() {
             Quản lý thông tin các trung tâm trong hệ thống
           </p>
         </div>
-        <Button>
+        <Button onClick={() => router.push('/add-center')}>
           <Plus className="h-4 w-4 mr-2" />
           Thêm mới
         </Button>
@@ -211,19 +274,25 @@ export default function AdminCentersPage() {
       {/* ===== THỐNG KÊ ===== */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
-          <CardHeader><CardTitle>Tổng trung tâm</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Tổng trung tâm</CardTitle>
+          </CardHeader>
           <CardContent className="text-2xl font-bold">{total}</CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Đã duyệt</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Đã duyệt</CardTitle>
+          </CardHeader>
           <CardContent className="text-2xl font-bold text-green-600">
             {approvedCount}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Chưa duyệt</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Chưa duyệt</CardTitle>
+          </CardHeader>
           <CardContent className="text-2xl font-bold text-red-600">
             {unapprovedCount}
           </CardContent>
@@ -291,16 +360,139 @@ export default function AdminCentersPage() {
                   <TableCell>
                     <Badge
                       className="cursor-pointer"
-                      variant={center.status === 'active' ? 'default' : 'secondary'}
+                      variant={
+                        center.status === 'active' ? 'default' : 'secondary'
+                      }
                       onClick={() => toggleStatus(center)}
                     >
                       {center.status === 'active' ? 'Đã duyệt' : 'Chưa duyệt'}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right space-x-2">
-                    <Button size="sm" variant="outline">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                  <Dialog>
+                      <DialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEdit(center)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      {editingCenter && editingCenter._id === center._id && (
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Chỉnh sửa trung tâm</DialogTitle>
+                            <DialogDescription>
+                              Cập nhật thông tin chi tiết của trung tâm.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                              <Label htmlFor="name" className="text-right">
+                                Tên
+                              </Label>
+                              <Input
+                                id="name"
+                                value={editingCenter.name}
+                                onChange={(e) =>
+                                  setEditingCenter({
+                                    ...editingCenter,
+                                    name: e.target.value,
+                                  })
+                                }
+                                className="col-span-3"
+                              />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                              <Label htmlFor="address" className="text-right">
+                                Địa chỉ
+                              </Label>
+                              <Input
+                                id="address"
+                                value={editingCenter.address || ''}
+                                onChange={(e) =>
+                                  setEditingCenter({
+                                    ...editingCenter,
+                                    address: e.target.value,
+                                  })
+                                }
+                                className="col-span-3"
+                              />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                              <Label htmlFor="website" className="text-right">
+                                Website
+                              </Label>
+                              <Input
+                                id="website"
+                                value={editingCenter.website || ''}
+                                onChange={(e) =>
+                                  setEditingCenter({
+                                    ...editingCenter,
+                                    website: e.target.value,
+                                  })
+                                }
+                                className="col-span-3"
+                              />
+                            </div>
+                            
+                            {/* === Display Image (Read-Only) === */}
+                            {editingCenter.image && (
+                                <div className="grid grid-cols-4 items-start gap-4">
+                                    <Label className="text-right pt-2">
+                                        Hình ảnh
+                                    </Label>
+                                    <div className="col-span-3">
+                                        <div className="relative w-full h-48">
+                                            <Image
+                                                src={editingCenter.image}
+                                                alt="Hình ảnh trung tâm"
+                                                fill
+                                                className="rounded-md border object-contain"
+                                                unoptimized
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-4 items-center gap-4">
+                              <Label htmlFor="status" className="text-right">
+                                Trạng thái
+                              </Label>
+                              <Select
+                                value={editingCenter.status}
+                                onValueChange={(value) =>
+                                  setEditingCenter({
+                                    ...editingCenter,
+                                    status: value as 'active' | 'inactive',
+                                  })
+                                }
+                              >
+                                <SelectTrigger className="col-span-3">
+                                  <SelectValue placeholder="Chọn trạng thái" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="active">
+                                    Đã duyệt
+                                  </SelectItem>
+                                  <SelectItem value="inactive">
+                                    Chưa duyệt
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <DialogClose asChild>
+                              <Button variant="outline" onClick={() => setEditingCenter(null)}>Hủy</Button>
+                            </DialogClose>
+                            <Button onClick={handleSave}>Lưu thay đổi</Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      )}
+                    </Dialog>
                     <Button
                       size="sm"
                       variant="destructive"
@@ -344,7 +536,10 @@ export default function AdminCentersPage() {
       )}
 
       {/* ===== DIALOG XÓA ===== */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Xác nhận xóa</AlertDialogTitle>
@@ -354,9 +549,7 @@ export default function AdminCentersPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Hủy</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>
-              Xóa
-            </AlertDialogAction>
+            <AlertDialogAction onClick={confirmDelete}>Xóa</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

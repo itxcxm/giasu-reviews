@@ -28,6 +28,28 @@ export class ReviewService {
     }
   }
 
+  // Người dùng xóa bài đánh giá của chính họ
+  async deleteOwnReview(reviewId, userId) {
+    const review = await reviewRepository.findById(reviewId);
+
+    if (!review) {
+      // Nếu không tìm thấy review, có thể coi như đã xóa thành công hoặc throw lỗi.
+      // Ở đây ta chọn không làm gì để tránh lộ thông tin.
+      return; 
+    }
+
+    // So sánh ID người dùng sở hữu review với ID người dùng đang thực hiện yêu cầu.
+    // Cần chuyển đổi ObjectId sang string để so sánh.
+    if (review.user.toString() !== userId) {
+      throw new Error('Forbidden'); // Lỗi sẽ được bắt ở controller
+    }
+
+    // Nếu đúng là chủ sở hữu, tiến hành xóa.
+    await reviewRepository.delete(reviewId);
+    // Cập nhật lại thống kê cho trung tâm.
+    await centersRepository.updateCenterStatistics(review.center);
+  }
+
   async updateReviewStatus(reviewId, status) {
     const updatedReview = await reviewRepository.update(reviewId, { status });
     if (updatedReview) {

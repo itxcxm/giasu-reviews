@@ -681,19 +681,81 @@ export default function ReviewClient({ center }: ReviewClientProps) {
 
       {selectedImageIndex !== null && (
         <div
-          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300"
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300"
           onClick={() => setSelectedImageIndex(null)}
         >
-          {/* Nội dung lightbox cho hình ảnh trung tâm */}
+          <div className="relative max-w-5xl max-h-[90vh] w-full h-full" onClick={(e) => e.stopPropagation()}>
+            {center.image && (
+                 <Image
+                    src={center.image}
+                    alt="Center image large"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 1280px) 100vw, 80vw"
+                    unoptimized
+                />
+            )}
+          </div>
+          <button
+              onClick={() => setSelectedImageIndex(null)}
+              className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-2 hover:bg-black/80 transition-colors"
+              aria-label="Close image viewer"
+          >
+              <X className="w-6 h-6" />
+          </button>
+          
+          {/* Navigation buttons for gallery (hidden if only 1 image) */}
+          {(center.image && [center.image].length > 1) && (
+            <>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        const images = center.image ? [center.image] : [];
+                        setSelectedImageIndex(selectedImageIndex > 0 ? selectedImageIndex - 1 : images.length - 1);
+                    }}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-white bg-black/50 rounded-full p-2 hover:bg-black/80 transition-colors"
+                    aria-label="Previous image"
+                >
+                    <ChevronLeft className="w-6 h-6" />
+                </button>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        const images = center.image ? [center.image] : [];
+                        setSelectedImageIndex(selectedImageIndex < images.length - 1 ? selectedImageIndex + 1 : 0);
+                    }}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white bg-black/50 rounded-full p-2 hover:bg-black/80 transition-colors"
+                    aria-label="Next image"
+                >
+                    <ChevronRight className="w-6 h-6" />
+                </button>
+            </>
+          )}
         </div>
       )}
 
       {selectedReviewImage && (
         <div
-          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300"
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300"
           onClick={() => setSelectedReviewImage(null)}
         >
-          {/* Nội dung lightbox cho hình ảnh đánh giá */}
+          <div className="relative max-w-4xl max-h-[90vh] w-full h-full" onClick={(e) => e.stopPropagation()}>
+            <Image
+              src={selectedReviewImage}
+              alt="Review image large"
+              fill
+              className="object-contain"
+              sizes="(max-width: 1024px) 100vw, 80vw"
+              unoptimized
+            />
+          </div>
+          <button
+              onClick={() => setSelectedReviewImage(null)}
+              className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-2 hover:bg-black/80 transition-colors"
+              aria-label="Close image viewer"
+          >
+              <X className="w-6 h-6" />
+          </button>
         </div>
       )}
     </div>

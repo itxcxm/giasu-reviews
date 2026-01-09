@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Star, Mail, Calendar, Edit, Camera } from 'lucide-react';
+import { Star, Mail, Calendar, Edit, Camera, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { userApi, reviewsApi, Review } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -48,6 +58,8 @@ export default function AccountPage() {
   const [error, setError] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletingReviewId, setDeletingReviewId] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Check authentication
@@ -160,6 +172,38 @@ export default function AccountPage() {
     setNewPassword('');
     setConfirmPassword('');
     setIsEditing(false);
+  };
+
+  const handleDeleteReview = (reviewId: string) => {
+    setDeletingReviewId(reviewId);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteReview = async () => {
+    if (!deletingReviewId) return;
+
+    try {
+      const response = await reviewsApi.deleteOwnReview(deletingReviewId);
+      if (response.success) {
+        setReviews(reviews.filter((r) => r._id !== deletingReviewId));
+        toast({
+          title: "Thành công",
+          description: "Đã xóa đánh giá của bạn.",
+        });
+      } else {
+        throw new Error(response.message || 'Không thể xóa đánh giá');
+      }
+    } catch (err: any) {
+      console.error('Error deleting review:', err);
+      toast({
+        title: "Lỗi",
+        description: err.message || "Không thể xóa đánh giá, vui lòng thử lại.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setDeletingReviewId(null);
+    }
   };
 
   const renderStars = (rating: number) => {
@@ -379,6 +423,14 @@ export default function AccountPage() {
                           </span>
                         </div>
                       </div>
+                       <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteReview(review._id!)}
+                          className="text-slate-500 hover:text-red-500 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </Button>
                     </div>
 
                     <p className="text-slate-700 leading-relaxed mb-4">{review.comment}</p>
@@ -423,6 +475,20 @@ export default function AccountPage() {
         </Tabs>
         )}
       </div>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Bạn có chắc chắn muốn xóa?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Hành động này không thể hoàn tác. Đánh giá của bạn sẽ bị xóa vĩnh viễn khỏi hệ thống.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Hủy</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmDeleteReview} className="bg-red-600 hover:bg-red-700">Xóa</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
